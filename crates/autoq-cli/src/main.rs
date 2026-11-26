@@ -52,7 +52,7 @@ impl RuntimeDevice {
 
     fn transport_label(&self) -> String {
         match self {
-            Self::UsbHid(d) => format!("HID·{}B", d.max_bands),
+            Self::UsbHid(d) => d.protocol_badge(),
             Self::PipeWire(p) => p.transport_badge.clone(),
             Self::WinApo { apo_ready } => {
                 if *apo_ready {
@@ -1040,7 +1040,8 @@ fn print_help() {
            autoq-cli eq \"<audífono>\" [--target \"Harman In-Ear 2019\" | --match \"<otro>\"] [--apply] [--commit] [--out eq.txt]\n\
            autoq-cli <subcomando-json> [opciones]\n\n\
          Comandos interactivos de terminal:\n\
-           eq               Descarga curva bajo demanda (con atribución), optimiza PEQ y exporta o aplica al hardware\n\n\
+           eq               Descarga curva bajo demanda (con atribución), optimiza PEQ y exporta o aplica al hardware\n\
+           hid-scan         Lista todos los dispositivos HID conectados (VID:PID y protocolo DSP reconocido)\n\n\
          Subcomandos JSON / Telemetría (UI, Waybar, KDE Plasma):\n\
            poll             Huella instantánea (<1ms) de presencia USB HID / Bluetooth\n\
            waybar-status    Estado JSON compacto (<5ms) para módulo Waybar\n\
@@ -1072,6 +1073,35 @@ fn main() {
     }
     if raw[0] == "poll" {
         println!("{}", hid::poll_fingerprint());
+        return;
+    }
+    if raw[0] == "hid-scan" {
+        let all = hid::scan_all_hid_devices();
+        let show_all = raw.iter().any(|a| a == "--all");
+        let as_json = raw.iter().any(|a| a == "--json");
+        let filtered: Vec<_> = all
+            .into_iter()
+            .filter(|d| show_all || d.recognized)
+            .collect();
+        if as_json {
+            println!(
+                "{}",
+                serde_json::to_string(&json!({ "ok": true, "devices": filtered })).unwrap_or_default()
+            );
+        } else if filtered.is_empty() {
+            println!("No se detectaron dispositivos DSP HID compatibles. Usa `autoq-cli hid-scan --all` para ver todos los nodos HID.");
+        } else {
+            println!("{:<16} {:<10} {:<12} {:<26} NOMBRE HID", "RUTA", "VID:PID", "PROTOCOLO", "MODELO DETECTADO");
+            println!("{}", "-".repeat(86));
+            for d in &filtered {
+                let proto = d
+                    .protocol
+                    .map(|p| format!("{p:?}"))
+                    .unwrap_or_else(|| "desconocido".to_string());
+                let matched = d.matched_name.as_deref().unwrap_or("-");
+                println!("{:<16} {:<10} {:<12} {:<26} {}", d.path, d.vid_pid, proto, matched, d.hid_name);
+            }
+        }
         return;
     }
     if raw[0] == "eq" {

@@ -1,8 +1,16 @@
 # AutoQ — Universal Parametric EQ & AutoEQ Suite
 
-**AutoQ** es una suite multiplataforma de ecualización paramétrica (PEQ) y calibración **AutoEQ** con estética inspirada en **Nothing OS** (obsidiana mate, matriz de puntos 5×7 y acento `#D71921`).
+**AutoQ** es una suite multiplataforma de ecualización paramétrica (PEQ) y calibración **AutoEQ** con estética inspirada en **Nothing OS** (obsidiana mate, matriz de puntos 5×7 y acento `#D71921`), impulsada por una **aplicación y motor 100 % nativos en Rust** en escritorio (Linux y Windows, sin Python) y **Kotlin + Jetpack Compose** en Android.
 
-Permite controlar tanto **hardware DSP USB-C integrado** (Moondrop Chu 2 DSP, FreeDSP, Rays, Dawn Pro 2, etc.) como **cualquier audífono Bluetooth, DAC USB o salida analógica de 3.5 mm** mediante ecualización global del sistema, manteniendo paridad de funciones entre **Android**, **Linux (Hyprland / Wayland)** y **Linux (KDE Plasma 6)**.
+Permite controlar tanto **hardware DSP USB-C integrado multiprotocolo** (*Moondrop*, *FiiO / JadeAudio / SNOWSKY*, *Tanchjim*, *Kiwi Ears*, *CrinEar*, *JCALLY*, *NiceHCK*, *Truthear*, *WalkPlay*) como **cualquier audífono Bluetooth, DAC USB o salida analógica de 3.5 mm** mediante ecualización global del sistema.
+
+---
+
+## Capturas (Estética Nothing OS)
+
+| Widget Compacto | Ecualizador Paramétrico (`EQ`) | Motor AutoEQ (+14,500 curvas) | Avanzado & Integración 1-Clic |
+| :---: | :---: | :---: | :---: |
+| ![Widget Compacto](./docs/screenshots/autoq_nothing_widget.png) | ![Pestaña EQ](./docs/screenshots/autoq_nothing_full_eq.png) | ![Pestaña AutoQ](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Pestaña Avanzado](./docs/screenshots/autoq_nothing_full_adv.png) |
 
 ---
 
@@ -10,21 +18,26 @@ Permite controlar tanto **hardware DSP USB-C integrado** (Moondrop Chu 2 DSP, Fr
 
 | Carpeta | Plataforma | Interfaz | Motor de EQ |
 | :--- | :--- | :--- | :--- |
-| [`crates/`](./crates/) | **Núcleo Multiplataforma (Rust)** | Binario nativo `autoq-cli` + librería `autoq-core` (`< 2 ms` de arranque, cero `numpy`/`requests`) | Optimizador RBJ/PEQ, USB-C HID 5/8 bandas (`hidraw`/`hidapi`), AutoEQ 8 fuentes, PipeWire, Equalizer APO y BT SPP |
+| [`crates/autoq-core`](./crates/autoq-core/) | **Núcleo Multiplataforma (Rust)** | Librería compartida sin dependencias Python | Optimizador RBJ/PEQ (`< 0.5 ms`), USB-C HID multiprotocolo (**KTMicro 5B**, **Moondrop 8B**, **WalkPlay**, **FiiO 5/10B**), AutoEQ 8 fuentes, PipeWire, Equalizer APO y BT SPP |
+| [`crates/autoq-gui`](./crates/autoq-gui/) | **GUI de Escritorio 100 % Rust** | App nativa Nothing OS (`eframe`/`egui`) + widget flotante + instaladores 1-clic (`~9 MB`, cero Python) | Llamadas directas en memoria a `autoq-core` a 60/120 FPS |
+| [`crates/autoq-cli`](./crates/autoq-cli/) | **CLI & Telemetría (Rust)** | Binario independiente (`2.9 MB`): `eq`, `hid-scan`, `poll` (`1 ms`), `waybar-status`, JSON CLI | Mismo motor `autoq-core` para terminal, Waybar y KDE Plasma 6 |
 | [`android/`](./android/) | **Android 9+ (API 28–36)** | App nativa Jetpack Compose + Widget de pantalla de inicio estilo Nothing OS | USB-C HID (5/8 bandas), Bluetooth SPP y servicio global `GlobalEqService` |
-| [`linux-appimage/`](./linux-appimage/) | **Linux Universal (AppImage x86_64)** | App de escritorio independiente (GNOME, KDE, Hyprland, XFCE) + instaladores opcionales de widgets | Motor `autoq-cli` en Rust + USB-C HID (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
-| [`linux-hyprland/`](./linux-hyprland/) | **Linux / Hyprland (Wayland)** | Widget flotante compacto + App PySide6 de 3 pestañas + módulo Waybar | Motor `autoq-cli` en Rust (`waybar-status` nativo) + USB-C HID, Bluetooth SPP y PipeWire (10 bandas) |
-| [`linux-kde/`](./linux-kde/) | **Linux / KDE Plasma 6** | Plasmoid nativo QML (`org.hector.moondropeq`) + App de escritorio Qt6/PySide6 | Motor `autoq-cli` en Rust (`poll` en `1 ms` + JSON CLI) + USB HID / PipeWire |
-| [`windows-beta/`](./windows-beta/) | **Windows 10/11 (`BETA — SIN TESTEAR`)** | App de escritorio PySide6 estilo Nothing OS | Motor `autoq-cli.exe` en Rust (`hidapi` 5 y 8 bandas) + EQ global de 10 bandas vía **Equalizer APO** |
-| [`docs/`](./docs/) | **Documentación y Roadmap** | — | [Roadmap Rust-First](./ROADMAP.md), [Arquitectura](./docs/ARCHITECTURE.md) y [Protocolo USB HID](./docs/USB_HID_PROTOCOL.md) |
+| [`linux-appimage/`](./linux-appimage/) | **Linux Universal (AppImage x86_64)** | AppImage 100 % Rust (`< 10 MB`) + instaladores 1-clic de Hyprland, KDE y `udev` | `autoq-gui` + `autoq-cli` embebidos (cero Python/PySide6) |
+| [`packaging/`](./packaging/) | **Gestores de Paquetes Linux** | `.deb` (`apt`), `PKGBUILD` (`paru`/`pacman`) y reglas `udev` multiprotocolo automáticas | Instalación nativa en `/usr/bin/autoq` y `/usr/bin/autoq-cli` |
+| [`linux-kde/`](./linux-kde/) | **Linux / KDE Plasma 6** | Plasmoid nativo QML (`org.hector.moondropeq`) | Alimentado directamente por `autoq-cli` en Rust (`poll` en `1 ms`) |
+| [`windows-beta/`](./windows-beta/) | **Windows 10/11 (`BETA`)** | Ejecutable portable `AutoQ.exe` + `autoq-cli.exe` 100 % Rust | USB-C HID multiprotocolo (`hidapi`) + EQ global 10 bandas vía **Equalizer APO** |
+| [`docs/`](./docs/) | **Documentación y Roadmap** | — | [Roadmap](./ROADMAP.md), [Arquitectura](./docs/ARCHITECTURE.md) y [Protocolo USB HID](./docs/USB_HID_PROTOCOL.md) |
 
 ---
 
 ## Características principales
 
-* **Control de Hardware DSP USB-C directo (sin app oficial):**
-  * **KTMicro 5 bandas (`VID 0x31B2`)**: *Moondrop Chu 2 DSP (`0x0113`)*, *CDSP*, *Quark 2*, etc. Lectura, escritura en vivo (`LIVE`) y guardado en memoria flash (`COMMIT`).
+* **Control de Hardware DSP USB-C Multiprotocolo (sin apps propietarias):**
+  * **KTMicro 5 bandas (`VID 0x31B2`)**: *Moondrop Chu 2 DSP / CDSP / Quark 2 / Jiu / May*, *Kiwi Ears Allegro Mini / PRO*, *JCALLY JM12*, *Tanchjim Zero / One / Tanya DSP*.
   * **Moondrop 8 bandas**: *FreeDSP Pro / Mini*, *Rays*, *AG Rays*, *Marigold*, *DAWN PRO 2*, *Echo A*, *MOONRIVER 3*, *DHA15*.
+  * **WalkPlay (19 VIDs, 5–10 bandas)**: *Tanchjim Bunny DSP / Stargate II / Space Pro*, *CrinEar Protocol Max (10B)*, *NiceHCK*, *LETSHUOER*, *ddHifi*, *Truthear* DSP.
+  * **FiiO / JadeAudio / SNOWSKY (`VID 0x2972`, `0x0A12`, 5–10 bandas)**: *JA11*, *JIEZI*, *KA15*, *KA17*, *BTR13*, *BTR17*, *QX13*, *Q7*, *BT11*, *SNOWSKY Melody / TINY*.
+  * **Diagnóstico instantáneo:** `autoq-cli hid-scan --all` muestra el `VID:PID` y protocolo detectado de cualquier cable/DAC USB-C conectado.
 * **Ecualizador Universal a nivel de sistema (10 bandas):**
   * En **Linux**, usa `libpipewire-module-filter-chain` nativo en PipeWire para cualquier salida Bluetooth, USB-C o 3.5 mm con latencia mínima y sin procesos pesados.
   * En **Android**, usa `GlobalEqService` para aplicar la curva paramétrica de forma global.

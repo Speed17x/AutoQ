@@ -1,21 +1,31 @@
-name: Build AutoQ Releases (Rust CLI + DEB + AppImage + Windows Beta + Android APK)
+name: Build AutoQ Releases (100% Rust Linux + Windows + Android APK)
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   rust-tests:
-    name: Rust Core & CLI Unit Tests
+    name: Rust Workspace Tests & Check
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Linux GUI dev headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgl1-mesa-dev libegl1-mesa-dev
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -23,48 +33,40 @@ jobs:
       - name: Rust Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Run workspace unit tests
+      - name: Run unit tests across workspace
         run: cargo test --workspace
 
   build-linux-packages:
-    name: Linux CLI + Debian (.deb) + AppImage (x86_64)
+    name: Linux 100% Rust (AppImage + DEB + Binaries)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Linux GUI & packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgl1-mesa-dev libegl1-mesa-dev librsvg2-bin fuse libfuse2 squashfs-tools dpkg-dev curl
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install system dependencies for Qt / AppImage / dpkg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 fuse libfuse2 squashfs-tools dpkg-dev curl
-
-      - name: Install Python UI build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller PySide6
-
-      - name: Build AutoQ-x86_64.AppImage (also builds release autoq-cli)
+      - name: Build 100% Rust AppImage, CLI & GUI binaries
         run: |
           chmod +x linux-appimage/build_appimage.sh
           ./linux-appimage/build_appimage.sh
           cp target/release/autoq-cli linux-appimage/dist/autoq-cli-linux-x86_64
-          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64
+          cp target/release/autoq-gui linux-appimage/dist/autoq-gui-linux-x86_64
+          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64 linux-appimage/dist/autoq-gui-linux-x86_64
 
       - name: Build Debian/Ubuntu .deb package
         run: |
-          VER="${GITHUB_REF_NAME:-1.1.0}"
+          VER="${GITHUB_REF_NAME:-2.0.0}"
           VER="${VER#v}"
           chmod +x packaging/deb/build_deb.sh
           ./packaging/deb/build_deb.sh "${VER}"
@@ -76,11 +78,13 @@ jobs:
           name: AutoQ-Linux-Packages
           path: |
             linux-appimage/dist/AutoQ-x86_64.AppImage
+            linux-appimage/dist/autoq-gui-linux-x86_64
             linux-appimage/dist/autoq-cli-linux-x86_64
             linux-appimage/dist/autoq_*_amd64.deb
 
-  build-windows-beta:
-    name: Windows Beta Portable (x64 — Rust Core, Untested)
+  build-windows-native:
+    name: Windows Portable x64 (100% Rust — Beta)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
     runs-on: windows-latest
     steps:
@@ -93,26 +97,22 @@ jobs:
       - name: Rust Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Build AutoQ-Windows-Beta.exe
+      - name: Build native AutoQ.exe & autoq-cli.exe
         shell: pwsh
         working-directory: windows-beta
         run: |
           .\build_windows.ps1
-          Compress-Archive -Path "dist\AutoQ-Windows-Beta\*" -DestinationPath "dist\AutoQ-Windows-Beta-x64.zip" -Force
+          Compress-Archive -Path "dist\AutoQ-Windows\*" -DestinationPath "dist\AutoQ-Windows-x64.zip" -Force
 
-      - name: Upload Windows Beta artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Windows-Beta-x64
-          path: windows-beta/dist/AutoQ-Windows-Beta-x64.zip
+          name: AutoQ-Windows-x64
+          path: windows-beta/dist/AutoQ-Windows-x64.zip
 
   build-android-apk:
     name: Android APK (Kotlin + Jetpack Compose)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -141,7 +141,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux-packages, build-windows-beta, build-android-apk]
+    needs: [build-linux-packages, build-windows-native, build-android-apk]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -149,11 +149,11 @@ jobs:
         with:
           path: release-assets
 
-      - name: Prepare assets and SHA256SUMS.txt
+      - name: Prepare release assets & SHA256SUMS.txt
         run: |
           mkdir -p dist-release
           cp release-assets/AutoQ-Linux-Packages/* dist-release/
-          cp release-assets/AutoQ-Windows-Beta-x64/AutoQ-Windows-Beta-x64.zip dist-release/
+          cp release-assets/AutoQ-Windows-x64/AutoQ-Windows-x64.zip dist-release/
           cp release-assets/AutoQ-Android-APK/AutoQ-Android.apk dist-release/
           cd dist-release
           sha256sum * > SHA256SUMS.txt
@@ -163,12 +163,11 @@ jobs:
         with:
           generate_release_notes: true
           body: |
-            ### Descargas incluidas
-            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` automáticamente).
-            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: portable universal para cualquier distro Linux, con instalación en 1 clic de widgets Hyprland y KDE Plasma 6 desde la pestaña *Avanzado*.
-            - **Linux CLI puro en Rust (`autoq-cli-linux-x86_64`)**: binario independiente de `2.9 MB` sin dependencias gráficas (`autoq-cli eq "Moondrop Chu 2" --commit`).
-            - **Arch / CachyOS (`paru` / `pacman`)**: `PKGBUILD` disponible en `packaging/aur/`.
+            ### Descargas incluidas (100 % Rust Nativo en Escritorio)
+            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación 100 % nativa en Rust (`< 10 MB`, cero Python/PySide6) con instaladores 1-clic de Hyprland, KDE Plasma 6 y reglas `udev`.
+            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` multiprotocolo automáticamente).
+            - **Linux Binarios Independientes (`autoq-gui-linux-x86_64` y `autoq-cli-linux-x86_64`)**.
+            - **Windows Portable (`AutoQ-Windows-x64.zip`)**: `AutoQ.exe` + `autoq-cli.exe` compilados en Rust nativo (USB HID multiprotocolo + Equalizer APO).
             - **Android (`AutoQ-Android.apk`)**: app nativa Kotlin + Jetpack Compose estilo Nothing OS.
-            - **Windows Beta (`AutoQ-Windows-Beta-x64.zip`)**: ⚠️ **VERSIÓN BETA SIN TESTEAR** en hardware Windows real (`autoq-cli.exe` en Rust + Equalizer APO).
             - **Sumas de verificación (`SHA256SUMS.txt`)**.
           files: dist-release/*

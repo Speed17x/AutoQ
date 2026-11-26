@@ -4,6 +4,27 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [2.0.0] — 2026-11-25
+
+### Añadido
+- **GUI de escritorio 100 % nativa en Rust (`crates/autoq-gui` con `eframe`/`egui`)**:
+  - Estética Nothing OS completa (cabecera de matriz de puntos 5×7, gráfico logarítmico PEQ/FR interactivo con nodos arrastrables y rueda `Q`, modo widget compacto `--widget` ↔ app de 3 pestañas `--full`, IPC por socket Unix `--toggle`).
+  - Llamadas directas en memoria a `autoq-core` (cero Python, cero PySide6, cero PyInstaller).
+  - Botones de 1 clic integrados en la pestaña *Avanzado* para Widget Hyprland, Plasmoid KDE Plasma 6 y reglas USB `udev`.
+- **Motor USB-C HID Multiprotocolo en `crates/autoq-core/src/hid.rs`**:
+  - **KTMicro extendido (`0x31B2`)**: Moondrop, Kiwi Ears Allegro Mini/PRO, JCALLY, Tanchjim.
+  - **Moondrop 8 bandas**: FreeDSP Pro/Mini, Rays, DAWN PRO 2, Echo A, MOONRIVER 3, DHA15.
+  - **WalkPlay (19 VIDs, 5–10 bandas)**: Tanchjim Bunny/Stargate II/Space Pro, CrinEar Protocol Max, NiceHCK, LETSHUOER, ddHifi, Truthear.
+  - **FiiO / JadeAudio / SNOWSKY (5–10 bandas)**: JA11, JIEZI, KA15, KA17, BTR13, BTR17, QX13, Q7, BT11, Melody, TINY.
+  - Comando de diagnóstico `autoq-cli hid-scan [--all] [--json]` y reglas `udev` multiprotocolo ampliadas.
+- **GitHub Actions activado** en `.github/workflows/build-releases.yml` (tests Rust en cada push/PR + compilación automática 100 % Rust de AppImage, `.deb`, Windows `.zip`, Android `.apk` y `SHA256SUMS.txt`).
+- **Capturas reales de la estética Nothing OS** añadidas en `docs/screenshots/` y mostradas en `README.md`.
+
+### Cambiado
+- `AutoQ-x86_64.AppImage`, `autoq_2.0.0_amd64.deb`, `packaging/aur/PKGBUILD` y `windows-beta/build_windows.ps1` pasan a ser **100 % Rust nativo** (AppImage reducido de `128 MB` a `< 10 MB`).
+
+---
+
 ## [1.1.0] — 2026-11-25
 
 ### Añadido

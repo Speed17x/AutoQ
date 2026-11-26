@@ -1,63 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a native Debian/Ubuntu package (`autoq_<version>_amd64.deb`)
-# Installable via: sudo apt install ./autoq_1.1.0_amd64.deb
-# Includes:
-#   - /usr/bin/autoq-cli (native Rust engine, works headless too)
-#   - /usr/bin/autoq (Nothing OS desktop app & widget launcher)
-#   - /usr/share/autoq/widgets/* (bundled Hyprland & KDE Plasma 6 widgets)
-#   - /lib/udev/rules.d/99-autoq-usb-dsp.rules (automatic USB HID permissions)
+# Build a 100% native Rust Debian/Ubuntu package (`autoq_<version>_amd64.deb`)
+# ZERO Python / PySide6 dependencies!
+# Installable via: sudo apt install ./autoq_2.0.0_amd64.deb
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION="${1:-1.1.0}"
+VERSION="${1:-2.0.0}"
 VERSION="${VERSION#v}"
 ARCH="amd64"
 PKG_NAME="autoq_${VERSION}_${ARCH}"
 WORK_DIR="${SCRIPT_DIR}/build/${PKG_NAME}"
 OUT_DIR="${SCRIPT_DIR}/dist"
 
-echo "======================================================"
-echo "  AutoQ — Generador de paquete Debian/Ubuntu (.deb)"
-echo "  Versión: ${VERSION} (${ARCH})"
-echo "======================================================"
+echo "============================================================"
+echo "  AutoQ — Generador de paquete .deb 100% Rust (${VERSION})"
+echo "============================================================"
 
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}/DEBIAN" "${OUT_DIR}"
 
+RUST_GUI="${REPO_ROOT}/target/release/autoq-gui"
 RUST_CLI="${REPO_ROOT}/target/release/autoq-cli"
-if [ ! -x "${RUST_CLI}" ]; then
-    echo "[*] Compilando autoq-cli --release ..."
-    (cd "${REPO_ROOT}" && cargo build --release -p autoq-cli)
+if [ ! -x "${RUST_GUI}" ] || [ ! -x "${RUST_CLI}" ]; then
+    echo "[*] Compilando autoq-gui y autoq-cli --release ..."
+    (cd "${REPO_ROOT}" && cargo build --release --workspace)
 fi
 
-# 1. Populate filesystem tree
+install -Dm755 "${RUST_GUI}" "${WORK_DIR}/usr/bin/autoq"
 install -Dm755 "${RUST_CLI}" "${WORK_DIR}/usr/bin/autoq-cli"
-install -Dm755 "${REPO_ROOT}/linux-hyprland/autoq_hyprland.py" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py"
-install -Dm755 "${REPO_ROOT}/linux-hyprland/install.sh" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/install.sh"
+
 install -Dm644 "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
 install -Dm644 "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"
-
 mkdir -p "${WORK_DIR}/usr/share/autoq/widgets/linux-kde"
 cp -a "${REPO_ROOT}/linux-kde/plasmoid" "${WORK_DIR}/usr/share/autoq/widgets/linux-kde/"
-
-cat > "${WORK_DIR}/usr/bin/autoq" << 'EOF'
-#!/usr/bin/env bash
-export AUTOQ_CLI_BIN="/usr/bin/autoq-cli"
-if [ $# -eq 0 ]; then
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py --full
-else
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py "$@"
-fi
-EOF
-chmod 755 "${WORK_DIR}/usr/bin/autoq"
 
 install -Dm644 "${REPO_ROOT}/linux-appimage/autoq.desktop" "${WORK_DIR}/usr/share/applications/autoq.desktop"
 install -Dm644 "${REPO_ROOT}/linux-appimage/autoq.svg" "${WORK_DIR}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
 install -Dm644 "${REPO_ROOT}/packaging/udev/99-autoq-usb-dsp.rules" "${WORK_DIR}/lib/udev/rules.d/99-autoq-usb-dsp.rules"
 
-# 2. DEBIAN metadata & postinst udev reload
 INSTALLED_KB="$(du -sk "${WORK_DIR}/usr" "${WORK_DIR}/lib" | awk '{s+=$1} END {print s}')"
 
 cat > "${WORK_DIR}/DEBIAN/control" << EOF
@@ -67,14 +49,15 @@ Section: sound
 Priority: optional
 Architecture: ${ARCH}
 Installed-Size: ${INSTALLED_KB}
-Depends: libc6, libgcc-s1
-Recommends: python3, python3-pyside6.qtwidgets, pipewire, pulseaudio-utils
+Depends: libc6, libgcc-s1, libgl1, libxkbcommon0
+Recommends: pipewire, pulseaudio-utils
 Maintainer: Speed17x <https://github.com/Speed17x/AutoQ>
 Homepage: https://github.com/Speed17x/AutoQ
-Description: Universal Parametric EQ & AutoEQ Suite (Nothing OS aesthetic)
- Native Rust DSP & USB-C HID engine (autoq-cli) supporting Moondrop 5/8-band
- hardware DSP, 10-band system-wide PipeWire EQ, and on-demand calibration
- across 14,500+ AutoEq & Squiglink headphone measurements.
+Description: Universal Parametric EQ & AutoEQ Suite (100% Native Rust)
+ Native Rust Nothing OS desktop app (autoq) and CLI (autoq-cli) with zero
+ Python dependencies. Supports multiprotocol USB-C HID DSP (KTMicro 5B,
+ Moondrop 8B, WalkPlay, FiiO 5/10B), 10-band PipeWire PEQ, and 14,500+
+ AutoEq & Squiglink headphone curves.
 EOF
 
 cat > "${WORK_DIR}/DEBIAN/postinst" << 'EOF'
@@ -88,7 +71,6 @@ exit 0
 EOF
 chmod 755 "${WORK_DIR}/DEBIAN/postinst"
 
-# 3. Build .deb (via dpkg-deb if available, or standard ar+tar fallback on Arch/Fedora)
 OUT_DEB="${OUT_DIR}/${PKG_NAME}.deb"
 rm -f "${OUT_DEB}"
 
@@ -103,5 +85,5 @@ else
     rm -rf "${TMP_AR}"
 fi
 
-echo "[OK] Paquete Debian generado en: ${OUT_DEB}"
-echo "     Instalar en Debian/Ubuntu:  sudo apt install ./${PKG_NAME}.deb"
+echo "[OK] Paquete Debian 100% Rust generado en: ${OUT_DEB}"
+ls -lh "${OUT_DEB}"

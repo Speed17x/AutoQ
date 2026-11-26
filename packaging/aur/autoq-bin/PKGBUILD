@@ -1,12 +1,12 @@
 # Maintainer: Hector <https://github.com/Speed17x/AutoQ>
 pkgname=autoq-bin
-pkgver=1.1.0
+pkgver=2.0.0
 pkgrel=1
-pkgdesc="Universal Parametric EQ & AutoEQ suite (precompiled Rust engine + Nothing OS Qt6 UI)"
+pkgdesc="Universal Parametric EQ & AutoEQ suite (precompiled 100% native Rust GUI + multiprotocol DSP CLI)"
 arch=('x86_64')
 url="https://github.com/Speed17x/AutoQ"
 license=('GPL-2.0-or-later')
-depends=('glibc' 'gcc-libs' 'python' 'pyside6')
+depends=('glibc' 'gcc-libs' 'libglvnd' 'libxkbcommon')
 optdepends=(
     'pipewire: Universal 10-band system-wide EQ filter-chain'
     'libpulse: Audio sink discovery via pactl'
@@ -15,35 +15,21 @@ optdepends=(
 provides=('autoq' 'autoq-cli')
 conflicts=('autoq')
 source=(
+    "autoq-gui-${pkgver}::https://github.com/Speed17x/AutoQ/releases/download/v${pkgver}/autoq-gui-linux-x86_64"
     "autoq-cli-${pkgver}::https://github.com/Speed17x/AutoQ/releases/download/v${pkgver}/autoq-cli-linux-x86_64"
     "AutoQ-${pkgver}.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v${pkgver}.tar.gz"
 )
-sha256sums=('d8d6d60049f10cf4dfdefccede45e7b485a12448d856ba2f7c48e17a282b191e'
-            '1dac92d9782a80b16124746fb64c5f8d74ca09e024f2f830886b9d480cae13b1')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 package() {
+    install -Dm755 "${srcdir}/autoq-gui-${pkgver}" "${pkgdir}/usr/bin/autoq"
     install -Dm755 "${srcdir}/autoq-cli-${pkgver}" "${pkgdir}/usr/bin/autoq-cli"
 
     cd "${srcdir}/AutoQ-${pkgver}"
-    install -Dm755 "linux-hyprland/autoq_hyprland.py" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py"
-    install -Dm755 "linux-hyprland/install.sh" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/install.sh"
     install -Dm644 "linux-hyprland/hyprland-autoq.conf" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
     install -Dm644 "linux-hyprland/waybar-module.jsonc" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"
-
     install -dm755 "${pkgdir}/usr/share/autoq/widgets/linux-kde"
     cp -a "linux-kde/plasmoid" "${pkgdir}/usr/share/autoq/widgets/linux-kde/"
-
-    install -dm755 "${pkgdir}/usr/bin"
-    cat > "${pkgdir}/usr/bin/autoq" << 'EOF'
-#!/usr/bin/env bash
-export AUTOQ_CLI_BIN="/usr/bin/autoq-cli"
-if [ $# -eq 0 ]; then
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py --full
-else
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py "$@"
-fi
-EOF
-    chmod 755 "${pkgdir}/usr/bin/autoq"
 
     install -Dm644 "linux-appimage/autoq.desktop" "${pkgdir}/usr/share/applications/autoq.desktop"
     install -Dm644 "linux-appimage/autoq.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/autoq.svg"

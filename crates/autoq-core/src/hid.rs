@@ -1,13 +1,24 @@
-//! Unified cross-platform USB-C HID protocol & transport for Moondrop DSP devices:
-//! 1. KTMicro 5-band devices (`VID 0x31B2`): Chu 2 DSP (`0x0113`), CDSP, Quark 2, Jiu, May.
-//! 2. Moondrop 8-band devices: Rays, AG Rays, Marigold, FreeDSP Pro/Mini, DAWN PRO 2,
+//! Unified cross-platform multiprotocol USB-C HID DSP engine for AutoQ:
+//! 1. KTMicro (`VID 0x31B2`): Moondrop Chu 2 DSP / CDSP / Quark 2 / Jiu / May,
+//!    Kiwi Ears Allegro Mini/PRO, JCALLY JM12/DSP, Tanchjim Zero/One/Tanya DSP.
+//! 2. Moondrop 8-band: FreeDSP Pro/Mini, Rays, AG Rays, Marigold, DAWN PRO 2,
 //!    Echo A, MOONRIVER 3, DHA15.
+//! 3. WalkPlay (19 VIDs, 5–10 bands): Tanchjim Bunny/Stargate II/Space Pro,
+//!    CrinEar Protocol Max, NiceHCK, LETSHUOER, ddHifi, Truthear DSP dongles.
+//! 4. FiiO / JadeAudio / SNOWSKY (`VID 0x2972`, `0x0A12`, 5–10 bands):
+//!    JA11, JIEZI, KA15, KA17, BTR13, BTR17, QX13, Q7, BT11, SNOWSKY Melody/TINY.
+//!
+//! Protocol definitions cross-referenced with open-source `jeromeof/devicePEQ` (0BSD).
 
-use crate::biquad::{FilterBand, FilterType};
+use crate::biquad::{compute_safe_preamp_db, FilterBand, FilterType};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::thread;
 use std::time::{Duration, Instant};
+
+// ---------------------------------------------------------------------------
+// Protocol Constants
+// ---------------------------------------------------------------------------
 
 // KTMicro 5-band constants
 pub const KT_VID: u16 = 0x31B2;
@@ -21,13 +32,34 @@ pub const KT_REG_BAND0: u8 = 0x26;
 pub const KT_SLOT_ON: u8 = 0x03;
 pub const KT_SLOT_OFF: u8 = 0x02;
 
-// Moondrop 8-band constants
+// Moondrop 8-band & WalkPlay constants (report ID 0x4B)
 pub const MD_REPORT_ID: u8 = 0x4B;
 pub const MD_CMD_WRITE: u8 = 0x01;
 pub const MD_CMD_READ: u8 = 0x80;
+pub const MD_CMD_SAVE_FLASH: u8 = 0x01;
+pub const WP_CMD_GLOBAL_GAIN: u8 = 0x03;
 pub const MD_CMD_UPDATE_EQ: u8 = 0x09;
 pub const MD_CMD_APPLY_COEFF: u8 = 0x0A;
-pub const MD_CMD_SAVE_FLASH: u8 = 0x01;
+
+// FiiO / JadeAudio / SNOWSKY HID constants
+pub const FIIO_VID_PRIMARY: u16 = 0x2972;
+pub const FIIO_VID_QUALCOMM: u16 = 0x0A12;
+pub const FIIO_SET_H1: u8 = 0xAA;
+pub const FIIO_SET_H2: u8 = 0x0A;
+pub const FIIO_GET_H1: u8 = 0xBB;
+pub const FIIO_GET_H2: u8 = 0x0B;
+pub const FIIO_END: u8 = 0xEE;
+pub const FIIO_CMD_FILTER_PARAMS: u8 = 0x15;
+pub const FIIO_CMD_PRESET_SWITCH: u8 = 0x16;
+pub const FIIO_CMD_GLOBAL_GAIN: u8 = 0x17;
+pub const FIIO_CMD_FILTER_COUNT: u8 = 0x18;
+pub const FIIO_CMD_SAVE_TO_DEVICE: u8 = 0x19;
+pub const FIIO_CMD_SAVE_V2: u8 = 0x21;
+
+pub const WALKPLAY_VIDS: &[u16] = &[
+    0x0104, 0x011B, 0x011D, 0x0661, 0x0663, 0x0666, 0x0762, 0x0909, 0x0D8C, 0x2FC6, 0x3302,
+    0x34BE, 0x35D8, 0x36A7, 0x373B, 0x60C1, 0x60E1, 0xB445, 0xB44D,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,6 +68,10 @@ pub enum HidProtocol {
     KtMicro,
     #[serde(rename = "moondrop8")]
     Moondrop8,
+    #[serde(rename = "walkplay")]
+    WalkPlay,
+    #[serde(rename = "fiio")]
+    Fiio,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,12 +87,53 @@ pub struct MoondropDeviceInfo {
     pub supports_shelves: bool,
     pub disconnects_on_commit: bool,
     pub autoeq_hint: String,
+    #[serde(default = "default_report_id")]
+    pub report_id: u8,
+    #[serde(default = "default_user_slot")]
+    pub user_slot: u8,
+    #[serde(default = "default_bypass_slot")]
+    pub bypass_slot: u8,
+    #[serde(default)]
+    pub fiio_save_v2: bool,
+}
+
+fn default_report_id() -> u8 {
+    KT_REPORT_ID
+}
+fn default_user_slot() -> u8 {
+    7
+}
+fn default_bypass_slot() -> u8 {
+    240
 }
 
 impl MoondropDeviceInfo {
     pub fn vid_pid(&self) -> String {
         format!("{:04x}:{:04x}", self.vid, self.pid)
     }
+
+    pub fn protocol_badge(&self) -> String {
+        let p = match self.protocol {
+            HidProtocol::KtMicro => "HID",
+            HidProtocol::Moondrop8 => "MD",
+            HidProtocol::WalkPlay => "WP",
+            HidProtocol::Fiio => "FIIO",
+        };
+        format!("{p}·{}B", self.max_bands)
+    }
+}
+
+/// Raw HID entry returned by `scan_all_hid_devices()` for diagnostics (`autoq-cli hid-scan`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawHidDevice {
+    pub path: String,
+    pub vid: u16,
+    pub pid: u16,
+    pub vid_pid: String,
+    pub hid_name: String,
+    pub recognized: bool,
+    pub matched_name: Option<String>,
+    pub protocol: Option<HidProtocol>,
 }
 
 const MOONDROP8_SPECS: &[(&str, &str, f64, bool, &str)] = &[
@@ -72,6 +149,35 @@ const MOONDROP8_SPECS: &[(&str, &str, f64, bool, &str)] = &[
     ("dha15", "Moondrop DHA15", 12.0, true, "Moondrop"),
 ];
 
+// (match_substr, display_name, max_bands, max_gain, report_id, user_slot, bypass_slot, disconnect, save_v2, hint)
+const FIIO_SPECS: &[(&str, &str, usize, f64, u8, u8, u8, bool, bool, &str)] = &[
+    ("ja11", "JadeAudio JA11", 5, 12.0, 2, 3, 4, true, false, "JadeAudio JA11"),
+    ("jiezi", "JadeAudio JIEZI", 5, 12.0, 2, 160, 240, false, false, "JadeAudio"),
+    ("ka17", "FiiO KA17", 10, 12.0, 1, 7, 10, false, false, "FiiO"),
+    ("ka15", "FiiO KA15", 10, 12.0, 7, 160, 10, false, false, "FiiO"),
+    ("qx13", "FiiO QX13", 10, 12.0, 7, 160, 240, false, false, "FiiO"),
+    ("btr17", "FiiO BTR17", 10, 12.0, 7, 160, 240, false, true, "FiiO"),
+    ("btr13", "FiiO BTR13", 10, 12.0, 7, 160, 240, false, false, "FiiO"),
+    ("bt11", "FiiO BT11", 10, 12.0, 7, 7, 11, false, false, "FiiO"),
+    ("q7", "FiiO Q7", 10, 12.0, 7, 7, 10, false, false, "FiiO"),
+    ("snowsky melody", "SNOWSKY Melody", 10, 12.0, 7, 160, 240, false, false, "FiiO"),
+    ("snowsky tiny", "SNOWSKY TINY", 10, 12.0, 7, 160, 240, false, false, "FiiO"),
+];
+
+// (match_substr, display_name, max_bands, max_gain, shelves, slot, hint)
+const WALKPLAY_SPECS: &[(&str, &str, usize, f64, bool, u8, &str)] = &[
+    ("protocol max", "CrinEar Protocol Max", 10, 10.0, true, 101, "CrinEar"),
+    ("stargate", "Tanchjim Stargate II", 8, 12.0, true, 101, "Tanchjim"),
+    ("bunny", "Tanchjim Bunny DSP", 5, 12.0, true, 101, "Tanchjim Bunny"),
+    ("space pro", "Tanchjim Space Pro", 8, 12.0, true, 101, "Tanchjim"),
+    ("tanchjim", "Tanchjim USB DSP", 5, 12.0, true, 101, "Tanchjim"),
+    ("nicehck", "NiceHCK USB DSP", 8, 12.0, true, 101, "NiceHCK"),
+    ("letshuoer", "LETSHUOER USB DSP", 8, 12.0, true, 101, "LETSHUOER"),
+    ("ddhifi", "ddHifi USB DSP", 8, 12.0, true, 101, "ddHifi"),
+    ("truthear", "Truthear USB DSP", 8, 12.0, true, 101, "Truthear"),
+    ("walkplay", "WalkPlay USB DSP", 8, 10.0, true, 101, ""),
+];
+
 pub fn classify_hid_device(
     dev_path: &str,
     vid: u16,
@@ -80,6 +186,7 @@ pub fn classify_hid_device(
 ) -> Option<MoondropDeviceInfo> {
     let low = hid_name.to_ascii_lowercase();
 
+    // 1. KTMicro 5-band family (VID 0x31B2): Moondrop, Kiwi Ears, JCALLY, Tanchjim
     if vid == KT_VID {
         let (display_name, hint) = if pid == CHU2_DSP_PID || low.contains("chu2") || low.contains("chu 2") {
             ("Moondrop Chu 2 DSP".to_string(), "Moondrop Chu 2".to_string())
@@ -89,15 +196,35 @@ pub fn classify_hid_device(
             ("Moondrop Jiu DSP".to_string(), "Moondrop Jiu".to_string())
         } else if low.contains("may") {
             ("Moondrop May DSP".to_string(), "Moondrop May".to_string())
-        } else if low.contains("cdsp") || low.contains("moondrop") || cfg!(target_os = "windows") {
+        } else if low.contains("kiwi") || low.contains("allegro") {
             let disp = if hid_name.trim().is_empty() {
-                format!("Moondrop CDSP ({vid:04x}:{pid:04x})")
-            } else if hid_name.to_ascii_lowercase().starts_with("moondrop") {
-                hid_name.trim().to_string()
+                "Kiwi Ears Allegro DSP".to_string()
             } else {
-                format!("Moondrop {}", hid_name.trim())
+                hid_name.trim().to_string()
             };
-            (disp, "Moondrop".to_string())
+            (disp, "Kiwi Ears".to_string())
+        } else if low.contains("jcally") || low.contains("jm12") {
+            let disp = if hid_name.trim().is_empty() {
+                "JCALLY USB DSP".to_string()
+            } else {
+                hid_name.trim().to_string()
+            };
+            (disp, "".to_string())
+        } else if low.contains("tanchjim") || low.contains("tanya") || low.contains("zero") {
+            let disp = if hid_name.trim().is_empty() {
+                "Tanchjim USB DSP".to_string()
+            } else {
+                hid_name.trim().to_string()
+            };
+            (disp, "Tanchjim".to_string())
+        } else if low.contains("cdsp") || low.contains("moondrop") || cfg!(target_os = "windows") || !low.is_empty() {
+            let disp = if hid_name.trim().is_empty() {
+                format!("KTMicro DSP ({vid:04x}:{pid:04x})")
+            } else {
+                hid_name.trim().to_string()
+            };
+            let hint = if low.contains("moondrop") { "Moondrop" } else { "" };
+            (disp, hint.to_string())
         } else {
             return None;
         };
@@ -114,9 +241,14 @@ pub fn classify_hid_device(
             supports_shelves: true,
             disconnects_on_commit: true,
             autoeq_hint: hint,
+            report_id: KT_REPORT_ID,
+            user_slot: KT_SLOT_ON,
+            bypass_slot: KT_SLOT_OFF,
+            fiio_save_v2: false,
         });
     }
 
+    // 2. Moondrop 8-band HID devices
     for &(substr, disp, max_g, shelves, hint) in MOONDROP8_SPECS {
         if low.contains(substr) {
             return Some(MoondropDeviceInfo {
@@ -131,7 +263,108 @@ pub fn classify_hid_device(
                 supports_shelves: shelves,
                 disconnects_on_commit: false,
                 autoeq_hint: hint.to_string(),
+                report_id: MD_REPORT_ID,
+                user_slot: 7,
+                bypass_slot: 0,
+                fiio_save_v2: false,
             });
+        }
+    }
+
+    // 3. FiiO / JadeAudio / SNOWSKY USB HID PEQ family
+    if vid == FIIO_VID_PRIMARY
+        || (vid == FIIO_VID_QUALCOMM && (low.contains("fiio") || low.contains("jade") || low.contains("snowsky")))
+    {
+        for &(substr, disp, max_b, max_g, rep_id, u_slot, b_slot, disc, save_v2, hint) in FIIO_SPECS {
+            if low.contains(substr) {
+                return Some(MoondropDeviceInfo {
+                    hidraw_path: dev_path.to_string(),
+                    vid,
+                    pid,
+                    hid_name: hid_name.to_string(),
+                    display_name: disp.to_string(),
+                    protocol: HidProtocol::Fiio,
+                    max_bands: max_b,
+                    max_gain_db: max_g,
+                    supports_shelves: true,
+                    disconnects_on_commit: disc,
+                    autoeq_hint: hint.to_string(),
+                    report_id: rep_id,
+                    user_slot: u_slot,
+                    bypass_slot: b_slot,
+                    fiio_save_v2: save_v2,
+                });
+            }
+        }
+        if vid == FIIO_VID_PRIMARY {
+            let disp = if hid_name.trim().is_empty() {
+                format!("FiiO USB DSP ({vid:04x}:{pid:04x})")
+            } else {
+                hid_name.trim().to_string()
+            };
+            return Some(MoondropDeviceInfo {
+                hidraw_path: dev_path.to_string(),
+                vid,
+                pid,
+                hid_name: hid_name.to_string(),
+                display_name: disp,
+                protocol: HidProtocol::Fiio,
+                max_bands: 10,
+                max_gain_db: 12.0,
+                supports_shelves: true,
+                disconnects_on_commit: false,
+                autoeq_hint: "FiiO".to_string(),
+                report_id: 7,
+                user_slot: 160,
+                bypass_slot: 240,
+                fiio_save_v2: false,
+            });
+        }
+    }
+
+    // 4. WalkPlay DSP chipset family (19 vendor IDs)
+    if WALKPLAY_VIDS.contains(&vid) {
+        // Explicit CrinEar Protocol Max PID (0x3302:0x43CC)
+        if vid == 0x3302 && pid == 0x43CC {
+            return Some(MoondropDeviceInfo {
+                hidraw_path: dev_path.to_string(),
+                vid,
+                pid,
+                hid_name: hid_name.to_string(),
+                display_name: "CrinEar Protocol Max".to_string(),
+                protocol: HidProtocol::WalkPlay,
+                max_bands: 10,
+                max_gain_db: 10.0,
+                supports_shelves: true,
+                disconnects_on_commit: false,
+                autoeq_hint: "CrinEar".to_string(),
+                report_id: MD_REPORT_ID,
+                user_slot: 101,
+                bypass_slot: 0,
+                fiio_save_v2: false,
+            });
+        }
+
+        for &(substr, disp, max_b, max_g, shelves, slot, hint) in WALKPLAY_SPECS {
+            if low.contains(substr) {
+                return Some(MoondropDeviceInfo {
+                    hidraw_path: dev_path.to_string(),
+                    vid,
+                    pid,
+                    hid_name: hid_name.to_string(),
+                    display_name: disp.to_string(),
+                    protocol: HidProtocol::WalkPlay,
+                    max_bands: max_b,
+                    max_gain_db: max_g,
+                    supports_shelves: shelves,
+                    disconnects_on_commit: false,
+                    autoeq_hint: hint.to_string(),
+                    report_id: MD_REPORT_ID,
+                    user_slot: slot,
+                    bypass_slot: 0,
+                    fiio_save_v2: false,
+                });
+            }
         }
     }
 
@@ -139,8 +372,10 @@ pub fn classify_hid_device(
 }
 
 // ---------------------------------------------------------------------------
-// Binary Protocol Codecs (KTMicro 5-band & Moondrop 8-band)
+// Binary Protocol Codecs
 // ---------------------------------------------------------------------------
+
+// --- 1. KTMicro (5-band, little-endian registers) ---
 
 pub fn kt_type_to_code(ft: FilterType) -> u8 {
     match ft {
@@ -196,6 +431,8 @@ pub fn kt_decode_band(gain_freq: [u8; 4], q_type: [u8; 4]) -> FilterBand {
     let q = (u16::from_le_bytes([q_type[0], q_type[1]]) as f64) / 1000.0;
     FilterBand::new(ftype, freq, gain, q).clamped()
 }
+
+// --- 2. Moondrop 8-band & WalkPlay (96 kHz Q2.30 biquad + metadata) ---
 
 pub fn md8_type_to_code(ft: FilterType) -> u8 {
     match ft {
@@ -271,7 +508,7 @@ pub fn md8_encode_biquad(band: &FilterBand) -> [i32; 5] {
     ]
 }
 
-pub fn md8_build_write_packet(index: u8, band: &FilterBand) -> [u8; 64] {
+pub fn md8_build_write_packet_with_slot(index: u8, band: &FilterBand, slot: u8) -> [u8; 64] {
     let b = band.clamped();
     let mut pkt = [0u8; 64];
     pkt[0] = MD_REPORT_ID;
@@ -296,8 +533,108 @@ pub fn md8_build_write_packet(index: u8, band: &FilterBand) -> [u8; 64] {
     pkt[32..34].copy_from_slice(&gain_i16.to_le_bytes());
     pkt[34] = md8_type_to_code(b.filter_type);
     pkt[35] = 0;
-    pkt[36] = 7;
+    pkt[36] = slot;
     pkt
+}
+
+pub fn md8_build_write_packet(index: u8, band: &FilterBand) -> [u8; 64] {
+    md8_build_write_packet_with_slot(index, band, 7)
+}
+
+// --- 3. FiiO / JadeAudio / SNOWSKY (big-endian AA 0A / BB 0B ... EE) ---
+
+pub fn fiio_type_to_code(ft: FilterType) -> u8 {
+    match ft {
+        FilterType::Peaking => 0,
+        FilterType::LowShelf => 1,
+        FilterType::HighShelf => 2,
+    }
+}
+
+pub fn fiio_code_to_type(code: u8) -> FilterType {
+    match code {
+        1 => FilterType::LowShelf,
+        2 => FilterType::HighShelf,
+        _ => FilterType::Peaking,
+    }
+}
+
+pub fn fiio_build_set_filter_packet(report_id: u8, index: u8, band: &FilterBand) -> [u8; 17] {
+    let b = band.clamped();
+    let gain_be = ((b.gain * 10.0).round() as i16).to_be_bytes();
+    let freq_be = (b.frequency.round() as u16).to_be_bytes();
+    let q_be = ((b.q * 100.0).round() as u16).to_be_bytes();
+    [
+        report_id,
+        FIIO_SET_H1,
+        FIIO_SET_H2,
+        0x00,
+        0x00,
+        FIIO_CMD_FILTER_PARAMS,
+        0x08,
+        index,
+        gain_be[0],
+        gain_be[1],
+        freq_be[0],
+        freq_be[1],
+        q_be[0],
+        q_be[1],
+        fiio_type_to_code(b.filter_type),
+        0x00,
+        FIIO_END,
+    ]
+}
+
+pub fn fiio_decode_filter_payload(payload: &[u8]) -> Option<(usize, FilterBand)> {
+    // payload starts at FIIO_GET_H1 (0xBB), i.e. after optional report_id byte
+    if payload.len() < 14
+        || payload[0] != FIIO_GET_H1
+        || payload[1] != FIIO_GET_H2
+        || payload[4] != FIIO_CMD_FILTER_PARAMS
+    {
+        return None;
+    }
+    let idx = payload[6] as usize;
+    let gain = (i16::from_be_bytes([payload[7], payload[8]]) as f64) / 10.0;
+    let freq = u16::from_be_bytes([payload[9], payload[10]]) as f64;
+    let q_raw = u16::from_be_bytes([payload[11], payload[12]]) as f64 / 100.0;
+    let q = if q_raw < 0.05 { 1.0 } else { q_raw };
+    let ft = fiio_code_to_type(payload[13]);
+    let band = if (10.0..=24_000.0).contains(&freq) {
+        FilterBand::new(ft, freq, gain, q).clamped()
+    } else {
+        FilterBand::new(FilterType::Peaking, 1000.0, 0.0, 1.0)
+    };
+    Some((idx, band))
+}
+
+pub fn fiio_build_global_gain_packet(report_id: u8, preamp_db: f64) -> [u8; 11] {
+    let g_be = ((preamp_db.clamp(-12.0, 12.0) * 10.0).round() as i16).to_be_bytes();
+    [
+        report_id,
+        FIIO_SET_H1,
+        FIIO_SET_H2,
+        0x00,
+        0x00,
+        FIIO_CMD_GLOBAL_GAIN,
+        0x02,
+        g_be[0],
+        g_be[1],
+        0x00,
+        FIIO_END,
+    ]
+}
+
+pub fn fiio_build_simple_cmd(report_id: u8, is_set: bool, cmd: u8, arg: Option<u8>) -> Vec<u8> {
+    let (h1, h2) = if is_set {
+        (FIIO_SET_H1, FIIO_SET_H2)
+    } else {
+        (FIIO_GET_H1, FIIO_GET_H2)
+    };
+    match arg {
+        Some(v) => vec![report_id, h1, h2, 0x00, 0x00, cmd, 0x01, v, 0x00, FIIO_END],
+        None => vec![report_id, h1, h2, 0x00, 0x00, cmd, 0x00, 0x00, FIIO_END],
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +711,41 @@ fn md8_send_and_read(
         }
     }
     Err(format!(
-        "Sin respuesta del DSP Moondrop (cmd 0x{expect_cmd1:02X})."
+        "Sin respuesta del DSP (cmd 0x{expect_cmd1:02X})."
+    ))
+}
+
+fn fiio_send_and_read(
+    ch: &mut dyn HidChannel,
+    req: &[u8],
+    report_id: u8,
+    expect_cmd: u8,
+) -> Result<Vec<u8>, String> {
+    ch.drain_input();
+    ch.write_report(req)?;
+
+    let mut buf = [0u8; 64];
+    for _ in 0..8 {
+        let n = ch.read_report(&mut buf, 600)?;
+        if n == 0 {
+            break;
+        }
+        let reply = &buf[..n];
+        let offset = if reply.len() > 2 && reply[0] == report_id && reply[1] == FIIO_GET_H1 {
+            1
+        } else {
+            0
+        };
+        if reply.len() >= offset + 7
+            && reply[offset] == FIIO_GET_H1
+            && reply[offset + 1] == FIIO_GET_H2
+            && reply[offset + 4] == expect_cmd
+        {
+            return Ok(reply[offset..].to_vec());
+        }
+    }
+    Err(format!(
+        "Sin respuesta del DSP FiiO (cmd 0x{expect_cmd:02X})."
     ))
 }
 
@@ -394,11 +765,11 @@ fn read_eq_on_channel(
             }
             Ok((slot != KT_SLOT_OFF, bands))
         }
-        HidProtocol::Moondrop8 => {
+        HidProtocol::Moondrop8 | HidProtocol::WalkPlay => {
             let mut bands = Vec::with_capacity(info.max_bands);
             for i in 0..info.max_bands {
                 let req = [
-                    MD_REPORT_ID,
+                    info.report_id,
                     MD_CMD_READ,
                     MD_CMD_UPDATE_EQ,
                     0x18,
@@ -422,6 +793,30 @@ fn read_eq_on_channel(
                 }
             }
             Ok((true, bands))
+        }
+        HidProtocol::Fiio => {
+            let preset_req = fiio_build_simple_cmd(info.report_id, false, FIIO_CMD_PRESET_SWITCH, None);
+            let enabled = fiio_send_and_read(ch, &preset_req, info.report_id, FIIO_CMD_PRESET_SWITCH)
+                .map(|p| p.get(6).copied().unwrap_or(info.user_slot) != info.bypass_slot)
+                .unwrap_or(true);
+
+            let mut bands = vec![FilterBand::new(FilterType::Peaking, 1000.0, 0.0, 1.0); info.max_bands];
+            for i in 0..info.max_bands {
+                let req = fiio_build_simple_cmd(
+                    info.report_id,
+                    false,
+                    FIIO_CMD_FILTER_PARAMS,
+                    Some(i as u8),
+                );
+                if let Ok(payload) = fiio_send_and_read(ch, &req, info.report_id, FIIO_CMD_FILTER_PARAMS) {
+                    if let Some((idx, band)) = fiio_decode_filter_payload(&payload) {
+                        if idx < bands.len() {
+                            bands[idx] = band;
+                        }
+                    }
+                }
+            }
+            Ok((enabled, bands))
         }
     }
 }
@@ -477,11 +872,16 @@ fn write_eq_on_channel(
         }
         HidProtocol::Moondrop8 => {
             for (i, band) in fitted.iter().enumerate() {
-                let pkt = md8_build_write_packet(i as u8, band);
+                let b = if enable_eq {
+                    band.clone()
+                } else {
+                    FilterBand::new(FilterType::Peaking, band.frequency, 0.0, 1.0)
+                };
+                let pkt = md8_build_write_packet_with_slot(i as u8, &b, info.user_slot);
                 ch.write_report(&pkt)?;
 
                 let mut enable_pkt = [0u8; 64];
-                enable_pkt[0] = MD_REPORT_ID;
+                enable_pkt[0] = info.report_id;
                 enable_pkt[1] = MD_CMD_WRITE;
                 enable_pkt[2] = MD_CMD_APPLY_COEFF;
                 enable_pkt[3] = i as u8;
@@ -493,7 +893,104 @@ fn write_eq_on_channel(
                 thread::sleep(Duration::from_millis(15));
             }
             if commit {
-                ch.write_report(&[MD_REPORT_ID, MD_CMD_WRITE, MD_CMD_SAVE_FLASH])?;
+                ch.write_report(&[info.report_id, MD_CMD_WRITE, MD_CMD_SAVE_FLASH])?;
+            }
+            Ok(())
+        }
+        HidProtocol::WalkPlay => {
+            for (i, band) in fitted.iter().enumerate() {
+                let b = if enable_eq {
+                    band.clone()
+                } else {
+                    FilterBand::new(FilterType::Peaking, band.frequency, 0.0, 1.0)
+                };
+                let pkt = md8_build_write_packet_with_slot(i as u8, &b, info.user_slot);
+                ch.write_report(&pkt)?;
+                thread::sleep(Duration::from_millis(18));
+            }
+            thread::sleep(Duration::from_millis(60));
+            // Write global preamp (CMD 0x03, 1-byte signed dB)
+            let preamp = if enable_eq {
+                compute_safe_preamp_db(&fitted).round().clamp(-12.0, 0.0) as i8
+            } else {
+                0i8
+            };
+            ch.write_report(&[info.report_id, MD_CMD_WRITE, WP_CMD_GLOBAL_GAIN, 0x01, preamp as u8, 0x00])?;
+            thread::sleep(Duration::from_millis(25));
+
+            // WalkPlay commit sequence (matches walkplayHidHandler.js)
+            ch.write_report(&[info.report_id, MD_CMD_WRITE, 0x05, 0x00])?;
+            thread::sleep(Duration::from_millis(15));
+            ch.write_report(&[info.report_id, MD_CMD_WRITE, 0x17, 0x00])?;
+            thread::sleep(Duration::from_millis(15));
+            ch.write_report(&[
+                info.report_id,
+                MD_CMD_WRITE,
+                MD_CMD_APPLY_COEFF,
+                0x04,
+                0x00,
+                0x00,
+                0xFF,
+                0xFF,
+                0x00,
+            ])?;
+            if commit {
+                thread::sleep(Duration::from_millis(40));
+                ch.write_report(&[info.report_id, MD_CMD_WRITE, MD_CMD_SAVE_FLASH, 0x01, 0x00])?;
+            }
+            Ok(())
+        }
+        HidProtocol::Fiio => {
+            let preamp = if enable_eq {
+                compute_safe_preamp_db(&fitted)
+            } else {
+                0.0
+            };
+            let g_pkt = fiio_build_global_gain_packet(info.report_id, preamp);
+            ch.write_report(&g_pkt)?;
+
+            let cnt_pkt = fiio_build_simple_cmd(
+                info.report_id,
+                true,
+                FIIO_CMD_FILTER_COUNT,
+                Some(fitted.len() as u8),
+            );
+            ch.write_report(&cnt_pkt)?;
+            thread::sleep(Duration::from_millis(60));
+
+            for (i, band) in fitted.iter().enumerate() {
+                let b = if enable_eq {
+                    band.clone()
+                } else {
+                    FilterBand::new(FilterType::Peaking, band.frequency, 0.0, 1.0)
+                };
+                let fpkt = fiio_build_set_filter_packet(info.report_id, i as u8, &b);
+                ch.write_report(&fpkt)?;
+                thread::sleep(Duration::from_millis(10));
+            }
+            thread::sleep(Duration::from_millis(60));
+
+            let target_slot = if enable_eq {
+                info.user_slot
+            } else {
+                info.bypass_slot
+            };
+            let switch_pkt = fiio_build_simple_cmd(
+                info.report_id,
+                true,
+                FIIO_CMD_PRESET_SWITCH,
+                Some(target_slot),
+            );
+            ch.write_report(&switch_pkt)?;
+
+            if commit {
+                let save_cmd = if info.fiio_save_v2 {
+                    FIIO_CMD_SAVE_V2
+                } else {
+                    FIIO_CMD_SAVE_TO_DEVICE
+                };
+                let save_pkt = fiio_build_simple_cmd(info.report_id, true, save_cmd, Some(info.user_slot));
+                ch.write_report(&save_pkt)?;
             }
             Ok(())
         }
@@ -511,7 +1008,7 @@ mod imp {
     use std::fs;
     use std::path::Path;
 
-    pub fn scan_moondrop_devices() -> Vec<MoondropDeviceInfo> {
+    pub fn scan_all_hid_devices() -> Vec<RawHidDevice> {
         let mut entries: Vec<String> = fs::read_dir("/sys/class/hidraw")
             .ok()
             .into_iter()
@@ -522,7 +1019,7 @@ mod imp {
             .collect();
         entries.sort();
 
-        let mut found = Vec::new();
+        let mut out = Vec::new();
         for hidraw_name in entries {
             let uevent_path = format!("/sys/class/hidraw/{hidraw_name}/device/uevent");
             let Ok(content) = fs::read_to_string(&uevent_path) else {
@@ -543,12 +1040,29 @@ mod imp {
                     hid_name = rest.trim().to_string();
                 }
             }
-
             let dev_path = format!("/dev/{hidraw_name}");
             if !Path::new(&dev_path).exists() {
                 continue;
             }
-            if let Some(info) = classify_hid_device(&dev_path, vid, pid, &hid_name) {
+            let matched = classify_hid_device(&dev_path, vid, pid, &hid_name);
+            out.push(RawHidDevice {
+                path: dev_path,
+                vid,
+                pid,
+                vid_pid: format!("{vid:04x}:{pid:04x}"),
+                hid_name,
+                recognized: matched.is_some(),
+                matched_name: matched.as_ref().map(|m| m.display_name.clone()),
+                protocol: matched.as_ref().map(|m| m.protocol),
+            });
+        }
+        out
+    }
+
+    pub fn scan_moondrop_devices() -> Vec<MoondropDeviceInfo> {
+        let mut found = Vec::new();
+        for raw in scan_all_hid_devices() {
+            if let Some(info) = classify_hid_device(&raw.path, raw.vid, raw.pid, &raw.hid_name) {
                 found.push(info);
             }
         }
@@ -591,8 +1105,8 @@ mod imp {
                 let err = std::io::Error::last_os_error();
                 if err.kind() == std::io::ErrorKind::PermissionDenied {
                     return Err(format!(
-                        "Sin permisos para abrir {} ({}, {}). Agrega una regla udev para idVendor={:04x}, idProduct={:04x}.",
-                        info.hidraw_path, info.display_name, info.vid_pid(), info.vid, info.pid
+                        "Sin permisos para abrir {} ({}, {}). Instala las reglas udev desde AVANZADO.",
+                        info.hidraw_path, info.display_name, info.vid_pid()
                     ));
                 }
                 return Err(format!("Error abriendo {}: {err}", info.hidraw_path));
@@ -688,19 +1202,39 @@ mod imp {
     use std::collections::HashSet;
     use std::ffi::CString;
 
-    pub fn scan_moondrop_devices() -> Vec<MoondropDeviceInfo> {
+    pub fn scan_all_hid_devices() -> Vec<RawHidDevice> {
         let Ok(api) = hidapi::HidApi::new() else {
             return Vec::new();
         };
         let mut seen = HashSet::new();
-        let mut found = Vec::new();
+        let mut out = Vec::new();
         for dev in api.device_list() {
             let path_str = dev.path().to_string_lossy().into_owned();
             if path_str.is_empty() || !seen.insert(path_str.clone()) {
                 continue;
             }
-            let prod = dev.product_string().unwrap_or("");
-            if let Some(info) = classify_hid_device(&path_str, dev.vendor_id(), dev.product_id(), prod) {
+            let prod = dev.product_string().unwrap_or("").to_string();
+            let vid = dev.vendor_id();
+            let pid = dev.product_id();
+            let matched = classify_hid_device(&path_str, vid, pid, &prod);
+            out.push(RawHidDevice {
+                path: path_str,
+                vid,
+                pid,
+                vid_pid: format!("{vid:04x}:{pid:04x}"),
+                hid_name: prod,
+                recognized: matched.is_some(),
+                matched_name: matched.as_ref().map(|m| m.display_name.clone()),
+                protocol: matched.as_ref().map(|m| m.protocol),
+            });
+        }
+        out
+    }
+
+    pub fn scan_moondrop_devices() -> Vec<MoondropDeviceInfo> {
+        let mut found = Vec::new();
+        for raw in scan_all_hid_devices() {
+            if let Some(info) = classify_hid_device(&raw.path, raw.vid, raw.pid, &raw.hid_name) {
                 found.push(info);
             }
         }
@@ -754,7 +1288,7 @@ mod imp {
     }
 }
 
-pub use imp::{poll_fingerprint, scan_moondrop_devices};
+pub use imp::{poll_fingerprint, scan_all_hid_devices, scan_moondrop_devices};
 
 pub fn find_active_moondrop_device() -> Option<MoondropDeviceInfo> {
     scan_moondrop_devices().into_iter().next()
@@ -766,7 +1300,7 @@ pub fn read_device_eq(
     let owned_info = match info {
         Some(i) => i.clone(),
         None => find_active_moondrop_device()
-            .ok_or_else(|| "No se detectó ningún dispositivo Moondrop DSP por USB-C.".to_string())?,
+            .ok_or_else(|| "No se detectó ningún dispositivo DSP USB-C compatible.".to_string())?,
     };
     let mut ch = imp::open_channel(&owned_info)?;
     let (enabled, bands) = read_eq_on_channel(ch.as_mut(), &owned_info)?;
@@ -782,7 +1316,7 @@ pub fn write_device_eq(
     let owned_info = match info {
         Some(i) => i.clone(),
         None => find_active_moondrop_device()
-            .ok_or_else(|| "No se detectó ningún dispositivo Moondrop DSP por USB-C.".to_string())?,
+            .ok_or_else(|| "No se detectó ningún dispositivo DSP USB-C compatible.".to_string())?,
     };
     {
         let mut ch = imp::open_channel(&owned_info)?;
@@ -810,9 +1344,7 @@ mod tests {
     fn ktmicro_band_roundtrip_matches_python_spec() {
         let band = FilterBand::new(FilterType::LowShelf, 105.0, -3.4, 0.707);
         let (gf, qt) = kt_encode_band(&band);
-        // -34 in i16 LE = 0xFFDE = [0xDE, 0xFF], 105 in u16 LE = [0x69, 0x00]
         assert_eq!(gf, [0xDE, 0xFF, 0x69, 0x00]);
-        // 707 in u16 LE = [0xC3, 0x02], low_shelf = 3
         assert_eq!(qt, [0xC3, 0x02, 3, 0]);
 
         let decoded = kt_decode_band(gf, qt);
@@ -831,7 +1363,6 @@ mod tests {
         assert_eq!(pkt[2], 0x09);
         assert_eq!(pkt[3], 0x18);
         assert_eq!(pkt[5], 2);
-        // At 0 dB peaking, b0/a0 == 1.0 -> Q2.30 == 1073741824 (0x40000000)
         assert_eq!(&pkt[8..12], &1_073_741_824_i32.to_le_bytes());
         assert_eq!(u16::from_le_bytes([pkt[28], pkt[29]]), 1000);
         assert_eq!(u16::from_le_bytes([pkt[30], pkt[31]]), 256);
@@ -841,13 +1372,54 @@ mod tests {
     }
 
     #[test]
-    fn classifies_chu2_and_freedsp() {
+    fn fiio_filter_packet_big_endian_roundtrip() {
+        let band = FilterBand::new(FilterType::HighShelf, 8500.0, -4.5, 1.41);
+        let pkt = fiio_build_set_filter_packet(7, 3, &band);
+        assert_eq!(pkt[0], 7);
+        assert_eq!(pkt[1], 0xAA);
+        assert_eq!(pkt[2], 0x0A);
+        assert_eq!(pkt[5], 0x15);
+        assert_eq!(pkt[6], 8);
+        assert_eq!(pkt[7], 3);
+        assert_eq!(pkt[16], 0xEE);
+
+        // Simulate GET response (BB 0B instead of AA 0A)
+        let mut resp = pkt[1..].to_vec();
+        resp[0] = FIIO_GET_H1;
+        resp[1] = FIIO_GET_H2;
+        let (idx, dec) = fiio_decode_filter_payload(&resp).unwrap();
+        assert_eq!(idx, 3);
+        assert_eq!(dec.filter_type, FilterType::HighShelf);
+        assert_eq!(dec.frequency, 8500.0);
+        assert!((dec.gain - (-4.5)).abs() < 1e-6);
+        assert!((dec.q - 1.41).abs() < 1e-6);
+    }
+
+    #[test]
+    fn classifies_multiprotocol_dsp_families() {
         let c = classify_hid_device("/dev/hidraw4", 0x31B2, 0x0113, "MOONDROP CHU2 DSP").unwrap();
         assert_eq!(c.protocol, HidProtocol::KtMicro);
         assert_eq!(c.max_bands, 5);
 
-        let f = classify_hid_device("/dev/hidraw5", 0x2FC6, 0xF001, "MOONDROP FreeDSP Pro").unwrap();
+        let k = classify_hid_device("/dev/hidraw5", 0x31B2, 0x0200, "Kiwi Ears Allegro Mini").unwrap();
+        assert_eq!(k.protocol, HidProtocol::KtMicro);
+
+        let f = classify_hid_device("/dev/hidraw6", 0x2FC6, 0xF001, "MOONDROP FreeDSP Pro").unwrap();
         assert_eq!(f.protocol, HidProtocol::Moondrop8);
         assert_eq!(f.max_bands, 8);
+
+        let ja11 = classify_hid_device("/dev/hidraw7", 0x2972, 0x0011, "JadeAudio JA11").unwrap();
+        assert_eq!(ja11.protocol, HidProtocol::Fiio);
+        assert_eq!(ja11.max_bands, 5);
+        assert_eq!(ja11.report_id, 2);
+
+        let ka17 = classify_hid_device("/dev/hidraw8", 0x2972, 0x0017, "FIIO KA17").unwrap();
+        assert_eq!(ka17.protocol, HidProtocol::Fiio);
+        assert_eq!(ka17.max_bands, 10);
+        assert_eq!(ka17.report_id, 1);
+
+        let pmax = classify_hid_device("/dev/hidraw9", 0x3302, 0x43CC, "CrinEar Protocol Max").unwrap();
+        assert_eq!(pmax.protocol, HidProtocol::WalkPlay);
+        assert_eq!(pmax.max_bands, 10);
     }
 }

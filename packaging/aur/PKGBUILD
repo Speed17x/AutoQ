@@ -1,12 +1,12 @@
 # Maintainer: Hector <https://github.com/Speed17x/AutoQ>
 pkgname=autoq
-pkgver=1.1.0
+pkgver=2.0.0
 pkgrel=1
-pkgdesc="Universal Parametric EQ & AutoEQ suite (Nothing OS style) with native Rust DSP/HID engine"
+pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/Speed17x/AutoQ"
 license=('GPL-2.0-or-later')
-depends=('glibc' 'gcc-libs' 'python' 'pyside6')
+depends=('glibc' 'gcc-libs' 'libglvnd' 'libxkbcommon')
 optdepends=(
     'pipewire: Universal 10-band system-wide EQ filter-chain'
     'libpulse: Audio sink discovery via pactl'
@@ -16,12 +16,12 @@ makedepends=('cargo')
 provides=('autoq' 'autoq-cli')
 conflicts=('autoq-bin')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('1dac92d9782a80b16124746fb64c5f8d74ca09e024f2f830886b9d480cae13b1')
+sha256sums=('SKIP')
 
 build() {
     cd "AutoQ-${pkgver}"
     export CARGO_TARGET_DIR=target
-    cargo build --release --locked -p autoq-cli
+    cargo build --release --locked --workspace
 }
 
 check() {
@@ -31,33 +31,14 @@ check() {
 
 package() {
     cd "AutoQ-${pkgver}"
-
-    # 1. Native Rust CLI & DSP/HID engine
+    install -Dm755 "target/release/autoq-gui" "${pkgdir}/usr/bin/autoq"
     install -Dm755 "target/release/autoq-cli" "${pkgdir}/usr/bin/autoq-cli"
 
-    # 2. Desktop UI & bundled Hyprland / KDE Plasma widgets
-    install -Dm755 "linux-hyprland/autoq_hyprland.py" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py"
-    install -Dm755 "linux-hyprland/install.sh" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/install.sh"
     install -Dm644 "linux-hyprland/hyprland-autoq.conf" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
     install -Dm644 "linux-hyprland/waybar-module.jsonc" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"
-
     install -dm755 "${pkgdir}/usr/share/autoq/widgets/linux-kde"
     cp -a "linux-kde/plasmoid" "${pkgdir}/usr/share/autoq/widgets/linux-kde/"
 
-    # 3. Launcher wrapper `/usr/bin/autoq`
-    install -dm755 "${pkgdir}/usr/bin"
-    cat > "${pkgdir}/usr/bin/autoq" << 'EOF'
-#!/usr/bin/env bash
-export AUTOQ_CLI_BIN="/usr/bin/autoq-cli"
-if [ $# -eq 0 ]; then
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py --full
-else
-    exec python3 /usr/share/autoq/widgets/linux-hyprland/autoq_hyprland.py "$@"
-fi
-EOF
-    chmod 755 "${pkgdir}/usr/bin/autoq"
-
-    # 4. Desktop entry, icon & automatic USB HID udev rules (zero manual sudo needed)
     install -Dm644 "linux-appimage/autoq.desktop" "${pkgdir}/usr/share/applications/autoq.desktop"
     install -Dm644 "linux-appimage/autoq.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
     install -Dm644 "packaging/udev/99-autoq-usb-dsp.rules" "${pkgdir}/usr/lib/udev/rules.d/99-autoq-usb-dsp.rules"

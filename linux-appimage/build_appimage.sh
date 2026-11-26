@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a self-contained AutoQ-x86_64.AppImage (Linux x86_64)
+# Build a 100% native Rust AutoQ-x86_64.AppImage (< 10 MB, ZERO Python / PySide6)
 # Includes:
-#   - Native Rust `autoq-cli` engine (DSP math, USB HID 5B/8B, AutoEQ, PipeWire, SPP)
-#   - Standalone Nothing OS PySide6 UI (zero numpy/requests bloat)
-#   - Optional bundled Hyprland widget and KDE Plasma 6 Plasmoid installers
+#   - `autoq-gui` (Native Rust Nothing OS desktop app + floating widget + 1-click installers)
+#   - `autoq-cli` (Native Rust CLI + multiprotocol USB HID + Waybar + KDE Plasma backend)
+#   - Bundled Hyprland config and KDE Plasma 6 Plasmoid (installable in 1 click)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -13,90 +13,66 @@ BUILD_DIR="${SCRIPT_DIR}/build"
 DIST_DIR="${SCRIPT_DIR}/dist"
 APPDIR="${BUILD_DIR}/AutoQ.AppDir"
 
-echo "======================================================"
-echo "  AutoQ — Generador de AppImage (Rust Core + Qt6 UI)"
-echo "======================================================"
+echo "============================================================"
+echo "  AutoQ — Generador de AppImage 100% Rust Nativo (x86_64)"
+echo "============================================================"
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "[!] Rust/Cargo no está instalado. Instálalo desde https://rustup.rs"
     exit 1
 fi
 
-if ! python3 -m PyInstaller --version >/dev/null 2>&1; then
-    echo "[!] PyInstaller no está instalado. Instálalo con:"
-    echo "      pip install pyinstaller PySide6"
-    exit 1
-fi
-
 rm -rf "${BUILD_DIR}" "${DIST_DIR}"
 mkdir -p "${BUILD_DIR}" "${DIST_DIR}"
 
-# 1. Compile native Rust backend (`autoq-cli`) in release mode
-echo "[*] Compilando motor nativo Rust (autoq-cli --release) ..."
-(cd "${REPO_ROOT}" && cargo build --release -p autoq-cli)
+# 1. Compile native Rust GUI + CLI in release mode
+echo "[*] Compilando autoq-gui y autoq-cli en modo release ..."
+(cd "${REPO_ROOT}" && cargo build --release --workspace)
+RUST_GUI="${REPO_ROOT}/target/release/autoq-gui"
 RUST_CLI="${REPO_ROOT}/target/release/autoq-cli"
 
-# 2. Bundle lightweight PySide6 frontend + Rust `autoq-cli` (excluding heavy unused modules)
-python3 -m PyInstaller \
-    --noconfirm \
-    --clean \
-    --onedir \
-    --windowed \
-    --name autoq \
-    --distpath "${BUILD_DIR}/pyi-dist" \
-    --workpath "${BUILD_DIR}/pyi-work" \
-    --specpath "${BUILD_DIR}" \
-    --paths "${REPO_ROOT}/linux-hyprland" \
-    --exclude-module numpy \
-    --exclude-module requests \
-    --exclude-module urllib3 \
-    --exclude-module PySide6.QtWebEngineCore \
-    --exclude-module PySide6.QtWebEngineWidgets \
-    --exclude-module PySide6.Qt3DCore \
-    --exclude-module PySide6.Qt3DRender \
-    --exclude-module PySide6.QtMultimedia \
-    --exclude-module PySide6.QtQml \
-    --exclude-module PySide6.QtQuick \
-    --exclude-module PySide6.QtSql \
-    --exclude-module PySide6.QtPdf \
-    --add-binary "${RUST_CLI}:." \
-    --add-data "${REPO_ROOT}/linux-hyprland/autoq_hyprland.py:widgets/linux-hyprland" \
-    --add-data "${REPO_ROOT}/linux-hyprland/install.sh:widgets/linux-hyprland" \
-    --add-data "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf:widgets/linux-hyprland" \
-    --add-data "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc:widgets/linux-hyprland" \
-    --add-data "${REPO_ROOT}/linux-kde/plasmoid:widgets/linux-kde/plasmoid" \
-    "${SCRIPT_DIR}/autoq_appimage_entry.py"
-
-# 3. Assemble AppDir
+# 2. Assemble lightweight AppDir
 mkdir -p \
     "${APPDIR}/usr/bin" \
     "${APPDIR}/usr/share/applications" \
     "${APPDIR}/usr/share/icons/hicolor/scalable/apps" \
-    "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
+    "${APPDIR}/usr/share/icons/hicolor/256x256/apps" \
+    "${APPDIR}/usr/share/autoq/widgets/linux-hyprland" \
+    "${APPDIR}/usr/share/autoq/widgets/linux-kde"
 
-cp -a "${BUILD_DIR}/pyi-dist/autoq/"* "${APPDIR}/usr/bin/"
+cp -f "${RUST_GUI}" "${APPDIR}/usr/bin/autoq"
 cp -f "${RUST_CLI}" "${APPDIR}/usr/bin/autoq-cli"
-chmod +x "${APPDIR}/usr/bin/autoq-cli"
+chmod +x "${APPDIR}/usr/bin/autoq" "${APPDIR}/usr/bin/autoq-cli"
 
-cp "${SCRIPT_DIR}/autoq.desktop" "${APPDIR}/autoq.desktop"
-cp "${SCRIPT_DIR}/autoq.desktop" "${APPDIR}/usr/share/applications/autoq.desktop"
-cp "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.svg"
-cp "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
+# Bundle optional desktop widgets (Hyprland + KDE Plasma 6)
+cp -f "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf" "${APPDIR}/usr/share/autoq/widgets/linux-hyprland/"
+cp -f "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc" "${APPDIR}/usr/share/autoq/widgets/linux-hyprland/"
+cp -a "${REPO_ROOT}/linux-kde/plasmoid" "${APPDIR}/usr/share/autoq/widgets/linux-kde/"
 
-# Render 256x256 PNG icon (.DirIcon) using QtGui so appimagetool emits zero icon warnings
-python3 - "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.png" << 'PYEOF' || true
+cp -f "${SCRIPT_DIR}/autoq.desktop" "${APPDIR}/autoq.desktop"
+cp -f "${SCRIPT_DIR}/autoq.desktop" "${APPDIR}/usr/share/applications/autoq.desktop"
+cp -f "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.svg"
+cp -f "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
+
+# Render 256x256 PNG icon (.DirIcon) if rsvg-convert or python+PySide6 or magick is present
+if command -v rsvg-convert >/dev/null 2>&1; then
+    rsvg-convert -w 256 -h 256 "${SCRIPT_DIR}/autoq.svg" -o "${APPDIR}/autoq.png"
+elif command -v magick >/dev/null 2>&1; then
+    magick -background none -resize 256x256 "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.png"
+elif command -v python3 >/dev/null 2>&1; then
+    python3 - "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.png" << 'PYEOF' 2>/dev/null || true
 import sys
 from PySide6.QtGui import QGuiApplication, QIcon, QImage, QPainter
 from PySide6.QtCore import Qt
 app = QGuiApplication([])
 img = QImage(256, 256, QImage.Format.Format_ARGB32)
 img.fill(Qt.GlobalColor.transparent)
-icon = QIcon(sys.argv[1])
 p = QPainter(img)
-icon.paint(p, 0, 0, 256, 256)
+QIcon(sys.argv[1]).paint(p, 0, 0, 256, 256)
 p.end()
 img.save(sys.argv[2], "PNG")
 PYEOF
+fi
 
 if [ -f "${APPDIR}/autoq.png" ]; then
     cp -f "${APPDIR}/autoq.png" "${APPDIR}/.DirIcon"
@@ -107,12 +83,15 @@ cat > "${APPDIR}/AppRun" << 'EOF'
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "${0}")")"
 export PATH="${HERE}/usr/bin:${PATH}"
-export AUTOQ_CLI_BIN="${HERE}/usr/bin/autoq-cli"
+if [ "${1:-}" = "--backend" ]; then
+    shift
+    exec "${HERE}/usr/bin/autoq-cli" "$@"
+fi
 exec "${HERE}/usr/bin/autoq" "$@"
 EOF
 chmod +x "${APPDIR}/AppRun"
 
-# 4. Locate or download appimagetool
+# 3. Locate or download appimagetool
 APPIMAGETOOL="$(command -v appimagetool || true)"
 if [ -z "${APPIMAGETOOL}" ]; then
     APPIMAGETOOL="${BUILD_DIR}/appimagetool-x86_64.AppImage"
@@ -124,13 +103,11 @@ if [ -z "${APPIMAGETOOL}" ]; then
     fi
 fi
 
-# 5. Build final AppImage
+# 4. Build final ultra-light AppImage
 OUT_APPIMAGE="${DIST_DIR}/AutoQ-x86_64.AppImage"
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "${APPIMAGETOOL}" "${APPDIR}" "${OUT_APPIMAGE}"
 chmod +x "${OUT_APPIMAGE}"
 
 echo ""
-echo "[OK] AppImage generado en: ${OUT_APPIMAGE}"
-echo "     Ejecutar app completa:      ./AutoQ-x86_64.AppImage"
-echo "     Instalar widget Hyprland:   ./AutoQ-x86_64.AppImage --install-hyprland-widget"
-echo "     Instalar plasmoid KDE 6:    ./AutoQ-x86_64.AppImage --install-kde-plasmoid"
+echo "[OK] AppImage 100% Rust generado en: ${OUT_APPIMAGE}"
+ls -lh "${OUT_APPIMAGE}"

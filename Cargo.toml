@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/autoq-core",
     "crates/autoq-cli",
+    "crates/autoq-gui",
 ]
 
 [profile.release]
