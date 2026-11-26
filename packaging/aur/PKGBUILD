@@ -6,7 +6,7 @@ pkgdesc="Universal Parametric EQ & AutoEQ suite (Nothing OS style) with native R
 arch=('x86_64' 'aarch64')
 url="https://github.com/Speed17x/AutoQ"
 license=('GPL-2.0-or-later')
-depends=('glibc' 'gcc-libs' 'python' 'python-pyside6')
+depends=('glibc' 'gcc-libs' 'python' 'pyside6')
 optdepends=(
     'pipewire: Universal 10-band system-wide EQ filter-chain'
     'libpulse: Audio sink discovery via pactl'
@@ -16,7 +16,7 @@ makedepends=('cargo')
 provides=('autoq' 'autoq-cli')
 conflicts=('autoq-bin')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('1dac92d9782a80b16124746fb64c5f8d74ca09e024f2f830886b9d480cae13b1')
 
 build() {
     cd "AutoQ-${pkgver}"

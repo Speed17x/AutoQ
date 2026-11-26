@@ -48,7 +48,7 @@ if [ ${#missing[@]} -gt 0 ]; then
     echo ""
     echo "[!] Faltan módulos de Python: ${missing[*]}"
     echo "    En Arch / CachyOS / EndeavourOS instala con:"
-    echo "      sudo pacman -S python-pyside6"
+    echo "      sudo pacman -S pyside6"
     echo "    En Fedora:"
     echo "      sudo dnf install python3-pyside6"
     echo "    O con pip:"

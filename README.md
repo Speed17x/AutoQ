@@ -88,7 +88,7 @@ Consulta todos los detalles de empaquetado en [`packaging/README.md`](./packagin
 ### 3. Linux — Hyprland / Wayland (`linux-hyprland/`)
 Consulta la guía completa en [`linux-hyprland/README.md`](./linux-hyprland/README.md). *(Nota: los widgets de Hyprland y KDE también vienen incluidos dentro del `.AppImage` y del paquete `.deb`/`pacman`, y pueden instalarse en **1 clic** desde la pestaña **AVANZADO**).*
 ```bash
-sudo pacman -S python-pyside6 pipewire wireplumber
+sudo pacman -S pyside6 pipewire wireplumber
 cd linux-hyprland
 ./install.sh
 ```
