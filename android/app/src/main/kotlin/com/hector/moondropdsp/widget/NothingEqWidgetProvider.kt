@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import androidx.compose.ui.graphics.toArgb
 import com.hector.moondropdsp.MainActivity
 import com.hector.moondropdsp.R
 import com.hector.moondropdsp.data.AppPreferencesStore
@@ -14,6 +15,9 @@ import com.hector.moondropdsp.hardware.BluetoothMoondropTransport
 import com.hector.moondropdsp.hardware.DeviceKind
 import com.hector.moondropdsp.hardware.GlobalEqService
 import com.hector.moondropdsp.hardware.UsbMoondropTransport
+import com.hector.moondropdsp.ui.theme.AppAccentId
+import com.hector.moondropdsp.ui.theme.AppThemeId
+import com.hector.moondropdsp.ui.theme.tokensFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,31 +46,67 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
         fun buildRemoteViews(context: Context): RemoteViews {
             val store = AppPreferencesStore(context)
             val snap = store.loadSnapshot()
+            val themeId = AppThemeId.fromKey(snap.themeId)
+            val accentId = AppAccentId.fromKey(snap.accentId)
+            val tokens = tokensFor(themeId, accentId)
             val views = RemoteViews(context.packageName, R.layout.widget_nothing_eq)
 
+            val rootBgRes = when (themeId) {
+                AppThemeId.PURE_HYPER -> R.drawable.widget_bg_default
+                AppThemeId.PURE_LIGHT -> R.drawable.widget_bg_light
+                AppThemeId.NOTHING_OS -> R.drawable.widget_bg_nothing
+            }
+            val graphBgRes = when (themeId) {
+                AppThemeId.PURE_HYPER -> R.drawable.widget_graph_frame_default
+                AppThemeId.PURE_LIGHT -> R.drawable.widget_graph_frame_light
+                AppThemeId.NOTHING_OS -> R.drawable.widget_graph_frame
+            }
+            val pillBgRes = when (themeId) {
+                AppThemeId.PURE_HYPER -> R.drawable.widget_pill_default
+                AppThemeId.PURE_LIGHT -> R.drawable.widget_pill_light
+                AppThemeId.NOTHING_OS -> R.drawable.widget_pill_dark
+            }
+
+            views.setInt(R.id.widget_root, "setBackgroundResource", rootBgRes)
+            views.setInt(R.id.widget_graph_container, "setBackgroundResource", graphBgRes)
+            views.setInt(R.id.widget_btn_prev, "setBackgroundResource", pillBgRes)
+            views.setInt(R.id.widget_preset_label, "setBackgroundResource", pillBgRes)
+            views.setInt(R.id.widget_btn_next, "setBackgroundResource", pillBgRes)
+            views.setInt(R.id.widget_btn_open, "setBackgroundResource", pillBgRes)
+
+            val primaryArgb = tokens.textPrimary.toArgb()
+            val mutedArgb = tokens.textMuted.toArgb()
+            val accentArgb = tokens.accent.toArgb()
+            val onAccentArgb = tokens.textOnAccent.toArgb()
+
             val isActive = snap.connected && snap.dspEnabled
-            views.setImageViewResource(
+            views.setImageViewBitmap(
                 R.id.widget_status_dot,
-                if (isActive) R.drawable.widget_dot_red else R.drawable.widget_dot_dim,
+                NothingDotMatrixRenderer.renderStatusDot(if (isActive) accentArgb else tokens.textSubtle.toArgb()),
             )
 
-            val titleBmp = NothingDotMatrixRenderer.renderDotMatrixTitle(
-                text = snap.shortWidgetName.ifBlank { "AUTOQ" },
-                color = if (snap.connected) 0xFFF5F5F5.toInt() else 0xFF9EA2AC.toInt(),
-            )
+            val titleText = snap.shortWidgetName.ifBlank { "AUTOQ" }
+            val titleColor = if (snap.connected) primaryArgb else mutedArgb
+            val titleBmp = if (tokens.useDotMatrixHeaders) {
+                NothingDotMatrixRenderer.renderDotMatrixTitle(text = titleText, color = titleColor)
+            } else {
+                NothingDotMatrixRenderer.renderCleanTitle(text = titleText, color = titleColor)
+            }
             views.setImageViewBitmap(R.id.widget_dot_title, titleBmp)
 
             views.setTextViewText(R.id.widget_transport_badge, snap.transportBadge)
+            views.setTextColor(R.id.widget_transport_badge, mutedArgb)
 
             views.setTextViewText(R.id.widget_btn_power, if (snap.dspEnabled) "ON" else "OFF")
-            views.setInt(
-                R.id.widget_btn_power,
-                "setBackgroundResource",
-                if (snap.dspEnabled) R.drawable.widget_pill_red else R.drawable.widget_pill_dark,
+            val powerFill = if (snap.dspEnabled) accentArgb else tokens.surfaceHigh.toArgb()
+            val powerStroke = if (snap.dspEnabled) accentArgb else tokens.border.toArgb()
+            views.setImageViewBitmap(
+                R.id.widget_btn_power_bg,
+                NothingDotMatrixRenderer.renderPowerPill(powerFill, powerStroke),
             )
             views.setTextColor(
                 R.id.widget_btn_power,
-                if (snap.dspEnabled) 0xFFFFFFFF.toInt() else 0xFF8E929B.toInt(),
+                if (snap.dspEnabled) onAccentArgb else mutedArgb,
             )
 
             val curveBmp = NothingDotMatrixRenderer.renderCurveBitmap(
@@ -75,6 +115,7 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
                 overlayFrMode = snap.overlayFrMode,
                 stockFr = snap.stockFrCurve,
                 targetFr = snap.targetFrCurve,
+                tokens = tokens,
             )
             views.setImageViewBitmap(R.id.widget_curve_image, curveBmp)
 
@@ -82,6 +123,10 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
                 R.id.widget_preset_label,
                 snap.activePresetName.uppercase(),
             )
+            views.setTextColor(R.id.widget_btn_prev, primaryArgb)
+            views.setTextColor(R.id.widget_preset_label, primaryArgb)
+            views.setTextColor(R.id.widget_btn_next, primaryArgb)
+            views.setTextColor(R.id.widget_btn_open, accentArgb)
 
             // Click handlers
             val openAppPi = PendingIntent.getActivity(
@@ -96,7 +141,9 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_btn_open, openAppPi)
             views.setOnClickPendingIntent(R.id.widget_dot_title, openAppPi)
 
-            views.setOnClickPendingIntent(R.id.widget_btn_power, actionPendingIntent(context, ACTION_TOGGLE_EQ, 101))
+            val powerPi = actionPendingIntent(context, ACTION_TOGGLE_EQ, 101)
+            views.setOnClickPendingIntent(R.id.widget_btn_power_wrap, powerPi)
+            views.setOnClickPendingIntent(R.id.widget_btn_power, powerPi)
             views.setOnClickPendingIntent(R.id.widget_btn_prev, actionPendingIntent(context, ACTION_PREV_PRESET, 102))
             views.setOnClickPendingIntent(R.id.widget_btn_next, actionPendingIntent(context, ACTION_NEXT_PRESET, 103))
             views.setOnClickPendingIntent(R.id.widget_preset_label, actionPendingIntent(context, ACTION_REFRESH, 104))

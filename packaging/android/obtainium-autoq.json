@@ -1,0 +1,8 @@
+{
+  "id": "com.hector.moondropdsp",
+  "url": "https://github.com/Speed17x/AutoQ",
+  "author": "Speed17x",
+  "name": "AutoQ",
+  "preferredApkIndex": 0,
+  "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"filterReleaseNotesByRegEx\":\"\",\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"useLatestAssetDateAsReleaseDate\":false,\"releaseTitleAsVersion\":false,\"trackOnly\":false,\"versionExtractionRegExMatch\":\"\",\"versionExtractionRegExReplace\":\"\",\"matchGroupToUse\":\"\",\"versionDetection\":false,\"releaseDateAsVersion\":false,\"useVersionCodeAsOSVersion\":false,\"apkFilterRegEx\":\"AutoQ-Android\\\\.apk\",\"invertAPKFilter\":false,\"autoApkFilterByArch\":false,\"appName\":\"AutoQ\",\"shizukuPretendToBeGooglePlay\":false,\"allowInsecure\":false,\"exemptFromBackgroundUpdates\":false,\"skipUpdateNotifications\":false,\"about\":\"Ecualizador paramétrico universal y AutoEQ (+14,500 curvas) con soporte USB-C DSP y EQ global DynamicsProcessing.\"}"
+}

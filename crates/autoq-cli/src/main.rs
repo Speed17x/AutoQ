@@ -5,12 +5,13 @@
 //! `waybar-status` subcommands.
 
 use autoq_core::autoeq::{
-    compute_match_headphone_peq, compute_target_curve_peq, downsample_curve, export_parametric_eq,
-    find_best_entry_any_brand, load_catalog, normalize_search_text, parse_parametric_eq,
-    reconstruct_fr_curve, AutoEqEntry, CURATED_TARGETS, SQUIG_SOURCES,
+    compute_match_headphone_peq, compute_target_curve_peq, downsample_curve, export_camilladsp_yaml,
+    export_easyeffects_json, export_parametric_eq, export_parametric_eq_with_preamp,
+    export_wavelet_graphiceq, find_best_entry_any_brand, load_catalog, normalize_search_text,
+    parse_parametric_eq, reconstruct_fr_curve, AutoEqEntry, CURATED_TARGETS, SQUIG_SOURCES,
 };
-use autoq_core::biquad::{fit_band_count, flat_bands, FilterBand};
-use autoq_core::config::{load_presets, save_presets, DEFAULT_VIRTUAL_BANDS};
+use autoq_core::biquad::{compute_safe_preamp_db, fit_band_count, flat_bands, FilterBand};
+use autoq_core::config::{load_presets, load_ui_settings, save_presets, DEFAULT_VIRTUAL_BANDS};
 use autoq_core::hid::{self, MoondropDeviceInfo};
 use autoq_core::platform_linux::{self, PipeWireAudioDevice, PW_SINK_NAME};
 use autoq_core::platform_windows;
@@ -319,6 +320,7 @@ fn cmd_status(preferred_id: &str, refresh_db: bool) -> Value {
         "total_db_count": entries.len(),
         "active_sources": active_sources,
         "total_sources": total_sources,
+        "ui_settings": load_ui_settings().resolved_palette_json(),
         "db_error": Value::Null,
     })
 }
@@ -371,6 +373,7 @@ fn cmd_apply(
     bands_json: &str,
     commit: bool,
     enable_eq: bool,
+    preamp_db: Option<f64>,
 ) -> Result<Value, String> {
     let bands = parse_bands_json(bands_json)?;
     let devices = discover_all_devices();
@@ -402,7 +405,7 @@ fn cmd_apply(
             }))
         }
         RuntimeDevice::PipeWire(pw) => {
-            let active = platform_linux::apply_pipewire_eq(pw, &fitted, enable_eq)?;
+            let active = platform_linux::apply_pipewire_eq_with_preamp(pw, &fitted, enable_eq, preamp_db)?;
             let msg = if active {
                 format!("EQ PipeWire {}B activo para {}.", pw.max_bands, pw.display_name)
             } else {
@@ -418,7 +421,8 @@ fn cmd_apply(
             }))
         }
         RuntimeDevice::WinApo { .. } => {
-            let path = platform_windows::apply_apo_eq(&fitted, enable_eq)?;
+            let auto_preamp = preamp_db.is_none();
+            let path = platform_windows::apply_apo_eq_with_preamp(&fitted, enable_eq, preamp_db, auto_preamp)?;
             let fname = path
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -453,7 +457,7 @@ fn cmd_flat(device_id: &str, commit: bool) -> Result<Value, String> {
     };
     let bands = flat_bands(dev.max_bands());
     let raw = serde_json::to_string(&bands).map_err(|e| e.to_string())?;
-    cmd_apply(&dev.id(), &raw, commit, true)
+    cmd_apply(&dev.id(), &raw, commit, true, None)
 }
 
 fn cmd_search(query: &str, moondrop_only: bool, in_ear_only: bool, limit: usize) -> Value {
@@ -750,6 +754,13 @@ impl CliArgs {
             .unwrap_or(default)
     }
 
+    fn opt_f64(&self, key: &str) -> Option<f64> {
+        self.kv
+            .get(key)
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite())
+    }
+
     fn usize_or(&self, key: &str, default: usize) -> usize {
         self.kv
             .get(key)
@@ -776,6 +787,7 @@ fn dispatch(args: &CliArgs) -> Result<Value, String> {
                 &bj,
                 args.has("--commit"),
                 !args.has("--bypass"),
+                args.opt_f64("--preamp"),
             )
         }
         "flat" => cmd_flat(&args.str_or("--device-id", ""), args.has("--commit")),
@@ -857,9 +869,32 @@ fn dispatch(args: &CliArgs) -> Result<Value, String> {
         "export-apo" => {
             let bj = decode_b64(&args.str_or("--bands-b64", ""))?;
             let bands = parse_bands_json(&bj)?;
+            let text = match args.opt_f64("--preamp") {
+                Some(p) => export_parametric_eq_with_preamp(&bands, p),
+                None => export_parametric_eq(&bands),
+            };
             Ok(json!({
                 "ok": true,
-                "text": export_parametric_eq(&bands),
+                "text": text,
+            }))
+        }
+        "export-format" => {
+            let fmt = args.str_or("--format", "apo").to_ascii_lowercase();
+            let bj = args.str_or_b64("--bands-json", "--bands-b64")?;
+            let bands = parse_bands_json(&bj)?;
+            let preamp = args
+                .opt_f64("--preamp")
+                .unwrap_or_else(|| compute_safe_preamp_db(&bands));
+            let text = match fmt.as_str() {
+                "easyeffects" | "ee" | "json" => export_easyeffects_json(&bands, preamp),
+                "camilladsp" | "camilla" | "yaml" | "yml" => export_camilladsp_yaml(&bands, preamp),
+                "wavelet" | "graphiceq" => export_wavelet_graphiceq(&bands),
+                _ => export_parametric_eq_with_preamp(&bands, preamp),
+            };
+            Ok(json!({
+                "ok": true,
+                "format": fmt,
+                "text": text,
             }))
         }
         "bt-spp" => {
@@ -995,25 +1030,47 @@ fn run_human_eq(args: &CliArgs) -> Result<(), String> {
 
     let out_path = args.str_or("--out", "");
     if !out_path.is_empty() {
-        let mut txt = format!(
-            "# Generado por AutoQ CLI (Rust)\n# Origen: {} — Medición cortesía de {} ({})\n# Objetivo: {} (RMSE {:.2} dB)\n",
-            src.name,
-            src.source_rig,
-            source_credit_url(src),
-            target_desc,
-            m.rmse
-        );
-        txt.push_str(&export_parametric_eq(&m.bands));
-        std::fs::write(&out_path, txt)
+        let mut fmt = args.str_or("--format", "").to_ascii_lowercase();
+        if fmt.is_empty() {
+            let low = out_path.to_ascii_lowercase();
+            fmt = if low.ends_with(".json") {
+                "easyeffects".to_string()
+            } else if low.ends_with(".yaml") || low.ends_with(".yml") {
+                "camilladsp".to_string()
+            } else {
+                "apo".to_string()
+            };
+        }
+        let safe_preamp = compute_safe_preamp_db(&m.bands);
+        let body = match fmt.as_str() {
+            "easyeffects" | "ee" | "json" => export_easyeffects_json(&m.bands, safe_preamp),
+            "camilladsp" | "camilla" | "yaml" | "yml" => {
+                export_camilladsp_yaml(&m.bands, safe_preamp)
+            }
+            "wavelet" | "graphiceq" => export_wavelet_graphiceq(&m.bands),
+            _ => {
+                let mut txt = format!(
+                    "# Generado por AutoQ CLI (Rust)\n# Origen: {} — Medición cortesía de {} ({})\n# Objetivo: {} (RMSE {:.2} dB)\n",
+                    src.name,
+                    src.source_rig,
+                    source_credit_url(src),
+                    target_desc,
+                    m.rmse
+                );
+                txt.push_str(&export_parametric_eq_with_preamp(&m.bands, safe_preamp));
+                txt
+            }
+        };
+        std::fs::write(&out_path, body)
             .map_err(|e| format!("Error guardando '{out_path}': {e}"))?;
-        println!("  [OK] Exportado ParametricEQ en: {out_path}");
+        println!("  [OK] Exportado ({fmt}) en: {out_path}");
     }
 
     let do_commit = args.has("--commit");
     let do_apply = args.has("--apply") || do_commit;
     if do_apply {
         let raw_bands = serde_json::to_string(&m.bands).map_err(|e| e.to_string())?;
-        let res = cmd_apply(&dev_id, &raw_bands, do_commit, true)?;
+        let res = cmd_apply(&dev_id, &raw_bands, do_commit, true, None)?;
         if res.get("ok").and_then(|v| v.as_bool()) == Some(true) {
             println!(
                 "  [OK] {}",
@@ -1037,7 +1094,7 @@ fn print_help() {
     println!(
         "autoq-cli {} — Motor unificado en Rust para AutoQ\n\
          Uso:\n\
-           autoq-cli eq \"<audífono>\" [--target \"Harman In-Ear 2019\" | --match \"<otro>\"] [--apply] [--commit] [--out eq.txt]\n\
+           autoq-cli eq \"<audífono>\" [--target \"Harman In-Ear 2019\" | --match \"<otro>\"] [--apply] [--commit] [--out eq.txt] [--format apo|easyeffects|camilladsp|wavelet]\n\
            autoq-cli <subcomando-json> [opciones]\n\n\
          Comandos interactivos de terminal:\n\
            eq               Descarga curva bajo demanda (con atribución), optimiza PEQ y exporta o aplica al hardware\n\
@@ -1058,6 +1115,7 @@ fn print_help() {
            preset-delete    Elimina un preset de usuario\n\
            import-apo       Importa texto ParametricEQ.txt (Equalizer APO)\n\
            export-apo       Exporta bandas actuales a ParametricEQ.txt\n\
+           export-format    Exporta bandas a apo, easyeffects, camilladsp o wavelet\n\
            bt-spp           Control opcional Bluetooth Classic SPP (preset/read/write)",
         env!("CARGO_PKG_VERSION")
     );

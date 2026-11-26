@@ -174,6 +174,10 @@ private fun MoondropAppShell(
                     onDragEnd = viewModel::onBandDragFinished,
                     onToggleLive = viewModel::toggleLivePreview,
                     onApply = { commit -> viewModel.applyCurrentBands(commit = commit) },
+                    onSetPreampDb = viewModel::setPreampDb,
+                    onSetAutoPreamp = viewModel::setAutoPreamp,
+                    onSelectAbSlot = viewModel::selectAbSlot,
+                    onCopyToOtherAbSlot = viewModel::copyCurrentToOtherAbSlot,
                     onPowerOffAndExit = onPowerOffAndExit,
                 )
 
@@ -199,6 +203,7 @@ private fun MoondropAppShell(
                     onSavePreset = viewModel::saveCustomPreset,
                     onDeletePreset = viewModel::deleteCustomPreset,
                     onExportApo = viewModel::exportParametricEqText,
+                    onExportFormat = viewModel::exportEqInFormat,
                     onImportApo = viewModel::importParametricEqText,
                     onSetBtGlobalEq = viewModel::setBtGlobalEqEnabled,
                     onSetBtSessionZero = viewModel::setBtSessionZeroFallback,

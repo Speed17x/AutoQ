@@ -189,6 +189,60 @@ pub struct UiSettings {
     pub accent: UiAccentId,
 }
 
+impl UiSettings {
+    pub fn resolved_palette_json(&self) -> serde_json::Value {
+        let (is_dark, bg, panel, border, default_accent, text_primary, text_muted, use_dot_grid) =
+            match self.theme {
+                UiThemeId::PureHyper => (
+                    true,
+                    "#0E1116",
+                    "#171B22",
+                    "#28303D",
+                    "#3482FF",
+                    "#F2F5FA",
+                    "#949FB2",
+                    false,
+                ),
+                UiThemeId::PureLight => (
+                    false,
+                    "#F4F6FA",
+                    "#FFFFFF",
+                    "#D5DCE6",
+                    "#2563EB",
+                    "#111827",
+                    "#525E71",
+                    false,
+                ),
+                UiThemeId::NothingOs => (
+                    true,
+                    "#0B0C0E",
+                    "#131518",
+                    "#272A32",
+                    "#D71921",
+                    "#F5F5F5",
+                    "#8E939E",
+                    true,
+                ),
+            };
+        let accent_hex = match self.accent.rgb(is_dark) {
+            Some((r, g, b)) => format!("#{r:02X}{g:02X}{b:02X}"),
+            None => default_accent.to_string(),
+        };
+        serde_json::json!({
+            "theme": self.theme,
+            "accent": self.accent,
+            "is_dark": is_dark,
+            "bg": bg,
+            "panel": panel,
+            "border": border,
+            "accent_hex": accent_hex,
+            "text_primary": text_primary,
+            "text_muted": text_muted,
+            "use_dot_grid": use_dot_grid,
+        })
+    }
+}
+
 pub fn ui_settings_file() -> PathBuf {
     config_dir().join("ui_settings.json")
 }

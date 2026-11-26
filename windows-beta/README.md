@@ -1,26 +1,36 @@
-# AutoQ para Windows (`100% Rust Nativo — Beta / Sin Testear`)
+# AutoQ para Windows (`100% Rust Nativo`)
 
-> [!WARNING]
-> **VERSIÓN BETA / EXPERIMENTAL — SIN TESTEAR EN HARDWARE REAL DE WINDOWS.**  
-> Compilada 100 % en **Rust nativo** (`AutoQ.exe`, `autoq-cli.exe` y `autoq-daemon.exe`) usando `hidapi` + Win32, pero **aún no ha sido probada en una máquina Windows física**. Úsala bajo tu propia responsabilidad (especialmente la escritura a Flash USB HID) y reporta cualquier fallo en *Issues*.
+> [!NOTE]
+> **Probado funcionalmente en Windows 10/11.** `AutoQ.exe` es una aplicación GUI pura (`windows_subsystem = "windows"`) que lee USB-C HID vía `hidapi` y puertos COM USB-CDC directamente desde el Registro de Windows (`HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`), **sin abrir ventanas emergentes de PowerShell ni CMD**.
+>
+> Mientras se completa el alta de firma **Authenticode** gratuita para código abierto (SignPath Foundation), Windows Defender SmartScreen mostrará la advertencia habitual de editor desconocido en binarios nuevos: pulsa **Más información → Ejecutar de todas formas** (y verifica su huella en `SHA256SUMS.txt`).
 
 ---
 
-## Qué incluye esta versión Beta
+## Opciones de descarga
 
-- **Interfaz Nothing OS completa (`AutoQ.exe`, `eframe`/`egui`)**: 3 pestañas (`EQ`, `AUTOQ`, `AVANZADO`) con gráfica logarítmica interactiva, modo widget compacto, presets e importación/exportación Equalizer APO.
-- **USB-C HID y Serial Multiprotocolo (`hidapi` + COM USB-CDC)**:
+1. **`AutoQ-Setup-x64.exe` (Recomendado):** instalador único generado con Inno Setup 6 (`AutoQ.iss`) con accesos directos en Menú Inicio / Escritorio y desinstalador integrado.
+2. **`AutoQ-Windows-x64.zip`:** versión portable con `AutoQ.exe`, `autoq-cli.exe` y `autoq-daemon.exe`.
+
+---
+
+## Qué incluye
+
+- **Interfaz modular (`AutoQ.exe`, `eframe`/`egui`)**: temas **`Default`**, **`Default claro`** y **`NothingOS`**, 8 colores de resaltado, gráfica logarítmica interactiva, modo widget compacto, presets e importación/exportación Equalizer APO.
+- **USB-C HID y Serial Multiprotocolo (`hidapi` + Registro Win32 COM)**:
   - Soporta las 8 familias DSP: **KTMicro 5B**, **Moondrop 8B**, **WalkPlay (5–10B)**, **FiiO / JadeAudio / SNOWSKY (5–10B)**, **Qudelix-5K (10B)**, **Topping DX1 II / E50 II (11B)**, **Fosi Audio DS3 (8B)** y **JDS Labs Element IV (12B USB-CDC)**.
 - **EQ Global de 10 bandas vía Equalizer APO**:
   - Genera `autoq_eq.txt` con preamp automático dentro de `C:\Program Files\EqualizerAPO\config\` y agrega `Include: autoq_eq.txt` a `config.txt`.
 - **Daemon de auto-perfil opcional (`autoq-daemon.exe`)**.
 - **Catálogo AutoEQ de +14,500 curvas** sincronizado de 8 repositorios abiertos.
 
-## Compilar ejecutable `.exe` en Windows (100 % Rust)
+---
+
+## Compilar en Windows (100 % Rust + Inno Setup)
 
 ```powershell
 cd windows-beta
 .\build_windows.ps1
 ```
 
-Genera `dist\AutoQ-Windows\AutoQ.exe`, `autoq-cli.exe` y `autoq-daemon.exe`. También puedes descargar **`AutoQ-Windows-x64.zip`** desde la pestaña **Releases** de GitHub.
+Genera `dist\AutoQ-Windows\AutoQ.exe`, `dist\AutoQ-Windows-x64.zip` y (si Inno Setup 6 / `ISCC.exe` está instalado) **`dist\AutoQ-Setup-x64.exe`**. Si se definen `WINDOWS_CERT_PFX` y `WINDOWS_CERT_PASSWORD`, los ejecutables y el instalador se firman automáticamente con `signtool.exe`.

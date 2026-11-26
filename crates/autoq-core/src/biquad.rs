@@ -93,9 +93,20 @@ impl FilterBand {
     }
 
     pub fn clamped(&self) -> Self {
-        let freq = self.frequency.clamp(MIN_FREQ_HZ, MAX_FREQ_HZ).round();
-        let gain = (self.gain.clamp(-MAX_GAIN_DB, MAX_GAIN_DB) * 10.0).round() / 10.0;
-        let q = (self.q.clamp(MIN_Q, MAX_Q) * 1000.0).round() / 1000.0;
+        let freq_in = if self.frequency.is_finite() {
+            self.frequency
+        } else {
+            1000.0
+        };
+        let gain_in = if self.gain.is_finite() {
+            self.gain
+        } else {
+            0.0
+        };
+        let q_in = if self.q.is_finite() { self.q } else { 1.0 };
+        let freq = freq_in.clamp(MIN_FREQ_HZ, MAX_FREQ_HZ).round();
+        let gain = (gain_in.clamp(-MAX_GAIN_DB, MAX_GAIN_DB) * 10.0).round() / 10.0;
+        let q = (q_in.clamp(MIN_Q, MAX_Q) * 1000.0).round() / 1000.0;
         Self {
             filter_type: self.filter_type,
             frequency: freq,
@@ -105,10 +116,25 @@ impl FilterBand {
     }
 
     pub fn clamped_with_max_gain(&self, max_gain_db: f64) -> Self {
-        let cap = max_gain_db.abs().max(0.1);
-        let freq = self.frequency.clamp(MIN_FREQ_HZ, MAX_FREQ_HZ).round();
-        let gain = (self.gain.clamp(-cap, cap) * 10.0).round() / 10.0;
-        let q = (self.q.clamp(MIN_Q, MAX_Q) * 1000.0).round() / 1000.0;
+        let cap = if max_gain_db.is_finite() {
+            max_gain_db.abs().max(0.1)
+        } else {
+            MAX_GAIN_DB
+        };
+        let freq_in = if self.frequency.is_finite() {
+            self.frequency
+        } else {
+            1000.0
+        };
+        let gain_in = if self.gain.is_finite() {
+            self.gain
+        } else {
+            0.0
+        };
+        let q_in = if self.q.is_finite() { self.q } else { 1.0 };
+        let freq = freq_in.clamp(MIN_FREQ_HZ, MAX_FREQ_HZ).round();
+        let gain = (gain_in.clamp(-cap, cap) * 10.0).round() / 10.0;
+        let q = (q_in.clamp(MIN_Q, MAX_Q) * 1000.0).round() / 1000.0;
         Self {
             filter_type: self.filter_type,
             frequency: freq,
@@ -278,18 +304,32 @@ pub fn combined_response_db(bands: &[FilterBand], freqs: &[f64], fs: f64) -> Vec
     total
 }
 
-pub fn compute_safe_preamp_db(bands: &[FilterBand]) -> f64 {
+pub fn peak_boost_db(bands: &[FilterBand]) -> f64 {
     if bands.is_empty() {
         return 0.0;
     }
     let grid = geomspace(20.0, 20_000.0, 256);
     let resp = combined_response_db(bands, &grid, SAMPLE_RATE_HZ);
     let peak = resp.into_iter().fold(f64::NEG_INFINITY, f64::max);
+    if peak.is_finite() && peak > 0.0 {
+        (peak * 100.0).round() / 100.0
+    } else {
+        0.0
+    }
+}
+
+pub fn compute_safe_preamp_db(bands: &[FilterBand]) -> f64 {
+    let peak = peak_boost_db(bands);
     if peak > 0.0 {
         ((-peak - 0.2) * 100.0).round() / 100.0
     } else {
         0.0
     }
+}
+
+pub fn headroom_margin_db(bands: &[FilterBand], preamp_db: f64) -> f64 {
+    let margin = -(peak_boost_db(bands) + preamp_db);
+    (margin * 100.0).round() / 100.0
 }
 
 pub fn make_weights(freqs: &[f64], max_freq_fit: f64) -> Vec<f64> {
@@ -604,5 +644,21 @@ mod tests {
         let (fitted, rmse) = fit_peq_bands(&grid, &target_curve, 5, 12_000.0, 12.0, true);
         assert_eq!(fitted.len(), 5);
         assert!(rmse < 0.35, "expected low RMSE, got {rmse}");
+    }
+
+    #[test]
+    fn clamps_non_finite_values_and_computes_headroom() {
+        let dirty = FilterBand::new(FilterType::Peaking, f64::NAN, f64::INFINITY, f64::NEG_INFINITY).clamped();
+        assert_eq!(dirty.frequency, 1000.0);
+        assert_eq!(dirty.gain, 0.0);
+        assert_eq!(dirty.q, 1.0);
+
+        let boost = vec![FilterBand::new(FilterType::Peaking, 1000.0, 6.0, 1.4)];
+        let peak = peak_boost_db(&boost);
+        assert!((peak - 6.0).abs() < 0.1, "got {peak}");
+        let safe = compute_safe_preamp_db(&boost);
+        assert!(safe < -5.9 && safe > -6.3, "got {safe}");
+        assert!(headroom_margin_db(&boost, safe) >= 0.0);
+        assert!(headroom_margin_db(&boost, 0.0) < -5.5);
     }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a 100% native Rust AutoQ-x86_64.AppImage (< 10 MB, ZERO Python / PySide6)
+# Build a native Rust AutoQ-x86_64.AppImage (< 10 MB)
 # Includes:
 #   - `autoq-gui` (Native Rust Nothing OS desktop app + floating widget + 1-click installers)
 #   - `autoq-cli` (Native Rust CLI + multiprotocol USB HID + Waybar + KDE Plasma backend)
@@ -56,7 +56,7 @@ cp -f "${SCRIPT_DIR}/autoq.desktop" "${APPDIR}/usr/share/applications/autoq.desk
 cp -f "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/autoq.svg"
 cp -f "${SCRIPT_DIR}/autoq.svg" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
 
-# Render 256x256 PNG icon (.DirIcon) if rsvg-convert or python+PySide6 or magick is present
+# Render 256x256 PNG icon (.DirIcon) if rsvg-convert or magick is present
 if command -v rsvg-convert >/dev/null 2>&1; then
     rsvg-convert -w 256 -h 256 "${SCRIPT_DIR}/autoq.svg" -o "${APPDIR}/autoq.png"
 elif command -v magick >/dev/null 2>&1; then

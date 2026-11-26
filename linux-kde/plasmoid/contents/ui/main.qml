@@ -15,12 +15,17 @@ PlasmoidItem {
     switchHeight: Kirigami.Units.gridUnit * 14
 
     readonly property string autoqCliCmd: "PATH=\"$HOME/.local/bin:$PATH\" autoq-cli"
-    readonly property string monoFont: "FantasqueSansM Nerd Font Mono"
-    readonly property color cyberBg: Qt.rgba(0.137, 0.149, 0.153, 0.56)
-    readonly property color cyberPanel: Qt.rgba(0.078, 0.086, 0.094, 0.42)
-    readonly property color cyanGlow: "#3DAEE9"
-    readonly property color amberTarget: "#E2E8F0"
-    readonly property color coralAccent: "#1CDC9A"
+    readonly property string monoFont: "Consolas, Inconsolata, monospace"
+    property color cyberBg: Qt.rgba(0.055, 0.067, 0.086, 0.92)
+    property color cyberPanel: Qt.rgba(0.090, 0.106, 0.133, 0.90)
+    property color borderCol: "#28303D"
+    property color textPrimary: "#F2F5FA"
+    property color textMuted: "#949FB2"
+    property color cyanGlow: "#949FB2"
+    property color amberTarget: "#D8E2F2"
+    property color coralAccent: "#3482FF"
+    property bool themeIsDark: true
+    property bool useDotGrid: false
 
     property var activeDevice: null
     property var allDevices: []
@@ -383,6 +388,30 @@ PlasmoidItem {
                         presetsMap = res.presets;
                         presetNames = Object.keys(res.presets);
                     }
+                    if (res.ui_settings) {
+                        var ui = res.ui_settings;
+                        root.themeIsDark = (ui.is_dark !== undefined) ? !!ui.is_dark : true;
+                        root.useDotGrid = !!ui.use_dot_grid;
+                        if (ui.bg) {
+                            var bgc = Qt.color(ui.bg);
+                            root.cyberBg = Qt.rgba(bgc.r, bgc.g, bgc.b, 0.94);
+                        }
+                        if (ui.panel) {
+                            var pnc = Qt.color(ui.panel);
+                            root.cyberPanel = Qt.rgba(pnc.r, pnc.g, pnc.b, 0.90);
+                        }
+                        if (ui.border) root.borderCol = Qt.color(ui.border);
+                        if (ui.accent_hex) root.coralAccent = Qt.color(ui.accent_hex);
+                        if (ui.text_primary) {
+                            root.textPrimary = Qt.color(ui.text_primary);
+                            root.amberTarget = Qt.color(ui.text_primary);
+                        }
+                        if (ui.text_muted) {
+                            root.textMuted = Qt.color(ui.text_muted);
+                            root.cyanGlow = Qt.color(ui.text_muted);
+                        }
+                        eqCanvas.requestPaint();
+                    }
                     if (res.read_error) {
                         statusMessage = res.read_error;
                         statusError = true;
@@ -435,6 +464,30 @@ PlasmoidItem {
                     if (res.presets) {
                         presetsMap = res.presets;
                         presetNames = Object.keys(res.presets);
+                    }
+                    if (res.ui_settings) {
+                        var ui = res.ui_settings;
+                        root.themeIsDark = (ui.is_dark !== undefined) ? !!ui.is_dark : true;
+                        root.useDotGrid = !!ui.use_dot_grid;
+                        if (ui.bg) {
+                            var bgc = Qt.color(ui.bg);
+                            root.cyberBg = Qt.rgba(bgc.r, bgc.g, bgc.b, 0.94);
+                        }
+                        if (ui.panel) {
+                            var pnc = Qt.color(ui.panel);
+                            root.cyberPanel = Qt.rgba(pnc.r, pnc.g, pnc.b, 0.90);
+                        }
+                        if (ui.border) root.borderCol = Qt.color(ui.border);
+                        if (ui.accent_hex) root.coralAccent = Qt.color(ui.accent_hex);
+                        if (ui.text_primary) {
+                            root.textPrimary = Qt.color(ui.text_primary);
+                            root.amberTarget = Qt.color(ui.text_primary);
+                        }
+                        if (ui.text_muted) {
+                            root.textMuted = Qt.color(ui.text_muted);
+                            root.cyanGlow = Qt.color(ui.text_muted);
+                        }
+                        eqCanvas.requestPaint();
                     }
                     statusMessage = res.message || "PRESET OK";
                     statusError = false;
@@ -530,7 +583,7 @@ PlasmoidItem {
             radius: 10
             color: root.cyberBg
             border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.12)
+            border.color: root.borderCol
 
             ColumnLayout {
                 anchors.fill: parent
@@ -557,7 +610,7 @@ PlasmoidItem {
                             font.family: root.monoFont
                             font.bold: true
                             font.pixelSize: 12
-                            color: "#FCFCFC"
+                            color: root.textPrimary
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -567,7 +620,7 @@ PlasmoidItem {
                                 : "Sin dispositivo conectado"
                             font.family: root.monoFont
                             font.pixelSize: 10
-                            color: root.activeDevice ? (root.dspEnabled ? root.cyanGlow : "#94A3B8") : "#A1A9B1"
+                            color: root.activeDevice ? (root.dspEnabled ? root.coralAccent : root.textMuted) : root.textMuted
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -645,7 +698,7 @@ PlasmoidItem {
                     Layout.preferredHeight: Kirigami.Units.gridUnit * 8.8
                     radius: 7
                     color: root.cyberPanel
-                    border.color: Qt.rgba(1, 1, 1, 0.10)
+                    border.color: root.borderCol
                     border.width: 1
 
                     Canvas {
@@ -660,6 +713,9 @@ PlasmoidItem {
                         readonly property bool frModeSnap: root.overlayFrMode
                         readonly property bool dspSnap: root.dspEnabled
                         readonly property int selSnap: root.selectedBand
+                        readonly property color accentSnap: root.coralAccent
+                        readonly property bool dotGridSnap: root.useDotGrid
+                        readonly property bool darkSnap: root.themeIsDark
 
                         onBandsSnapChanged: requestPaint()
                         onTgtSnapChanged: requestPaint()
@@ -668,6 +724,9 @@ PlasmoidItem {
                         onFrModeSnapChanged: requestPaint()
                         onDspSnapChanged: requestPaint()
                         onSelSnapChanged: requestPaint()
+                        onAccentSnapChanged: requestPaint()
+                        onDotGridSnapChanged: requestPaint()
+                        onDarkSnapChanged: requestPaint()
                         onWidthChanged: requestPaint()
                         onHeightChanged: requestPaint()
 
@@ -711,16 +770,32 @@ PlasmoidItem {
                             var lblF = { 20: "20", 100: "100", 500: "500", 1000: "1k", 5000: "5k", 20000: "20k" };
                             ctx.font = '9px "' + root.monoFont + '", monospace';
                             ctx.textAlign = "center";
+                            var gridAlpha = root.themeIsDark ? 0.08 : 0.14;
+                            var gridRgb = root.themeIsDark ? "255,255,255" : "15,23,42";
+                            if (root.useDotGrid) {
+                                ctx.fillStyle = "rgba(" + gridRgb + ",0.16)";
+                                for (var r = 0; r <= 6; r++) {
+                                    var dy = padT + (r / 6) * plotH;
+                                    for (var c = 0; c <= 18; c++) {
+                                        var dx = padL + (c / 18) * plotW;
+                                        ctx.beginPath();
+                                        ctx.arc(dx, dy, 1.0, 0, Math.PI * 2);
+                                        ctx.fill();
+                                    }
+                                }
+                            }
                             for (var i = 0; i < gridF.length; i++) {
                                 var x = fx(gridF[i], padL, plotW);
-                                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.06);
-                                ctx.lineWidth = 1;
-                                ctx.beginPath();
-                                ctx.moveTo(x, padT);
-                                ctx.lineTo(x, padT + plotH);
-                                ctx.stroke();
+                                if (!root.useDotGrid) {
+                                    ctx.strokeStyle = "rgba(" + gridRgb + "," + gridAlpha + ")";
+                                    ctx.lineWidth = 1;
+                                    ctx.beginPath();
+                                    ctx.moveTo(x, padT);
+                                    ctx.lineTo(x, padT + plotH);
+                                    ctx.stroke();
+                                }
                                 if (lblF[gridF[i]]) {
-                                    ctx.fillStyle = Qt.rgba(0.63, 0.66, 0.69, 0.85);
+                                    ctx.fillStyle = root.textMuted;
                                     ctx.fillText(lblF[gridF[i]], x, height - 3);
                                 }
                             }
@@ -729,14 +804,16 @@ PlasmoidItem {
                             ctx.textAlign = "right";
                             for (var j = 0; j < gridDb.length; j++) {
                                 var y = gy(gridDb[j], padT, plotH);
-                                ctx.strokeStyle = Qt.rgba(0.58, 0.64, 0.72, gridDb[j] === 0 ? 0.28 : 0.08);
-                                ctx.lineWidth = gridDb[j] === 0 ? 1.1 : 0.9;
-                                ctx.beginPath();
-                                ctx.moveTo(padL, y);
-                                ctx.lineTo(padL + plotW, y);
-                                ctx.stroke();
+                                if (!root.useDotGrid || gridDb[j] === 0) {
+                                    ctx.strokeStyle = "rgba(" + gridRgb + "," + (gridDb[j] === 0 ? 0.30 : gridAlpha) + ")";
+                                    ctx.lineWidth = gridDb[j] === 0 ? 1.1 : 0.9;
+                                    ctx.beginPath();
+                                    ctx.moveTo(padL, y);
+                                    ctx.lineTo(padL + plotW, y);
+                                    ctx.stroke();
+                                }
                                 if (gridDb[j] === 0 || gridDb[j] === 10 || gridDb[j] === -10 || Math.abs(gridDb[j]) === 12) {
-                                    ctx.fillStyle = Qt.rgba(0.58, 0.64, 0.72, 0.85);
+                                    ctx.fillStyle = root.textMuted;
                                     ctx.fillText((gridDb[j] > 0 ? "+" : "") + gridDb[j], padL - 4, y + 3);
                                 }
                             }
@@ -909,7 +986,7 @@ PlasmoidItem {
                             border.width: 1
                             border.color: root.selectedBand === index
                                 ? root.coralAccent
-                                : Qt.rgba(0.39, 0.45, 0.55, 0.35)
+                                : root.borderCol
 
                             ColumnLayout {
                                 anchors.centerIn: parent
@@ -921,7 +998,7 @@ PlasmoidItem {
                                         : Math.round(root.bands[index].frequency))
                                     font.family: root.monoFont
                                     font.pixelSize: 9
-                                    color: "#A1A9B1"
+                                    color: root.textMuted
                                 }
                                 PlasmaComponents3.Label {
                                     Layout.alignment: Qt.AlignHCenter
@@ -929,7 +1006,7 @@ PlasmoidItem {
                                     font.family: root.monoFont
                                     font.bold: true
                                     font.pixelSize: 11
-                                    color: Math.abs(root.bands[index].gain) >= 0.1 ? root.coralAccent : "#7F8C8D"
+                                    color: Math.abs(root.bands[index].gain) >= 0.1 ? root.coralAccent : root.textMuted
                                 }
                             }
                             MouseArea {
@@ -1443,7 +1520,7 @@ PlasmoidItem {
                     font.family: root.monoFont
                     font.pixelSize: 10
                     elide: Text.ElideRight
-                    color: root.statusError ? "#FCA5A5" : "#94A3B8"
+                    color: root.statusError ? root.coralAccent : root.textMuted
                 }
             }
         }

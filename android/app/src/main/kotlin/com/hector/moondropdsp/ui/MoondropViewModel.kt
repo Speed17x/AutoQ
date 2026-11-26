@@ -48,6 +48,12 @@ enum class AutoEqMode {
     MATCH_HEADPHONE,
 }
 
+data class EqSlot(
+    val bands: List<FilterBand>,
+    val preampDb: Double,
+    val autoPreamp: Boolean,
+)
+
 data class MoondropUiState(
     val devices: List<MoondropDevice> = emptyList(),
     val activeDevice: MoondropDevice? = null,
@@ -90,6 +96,10 @@ data class MoondropUiState(
     val audioOutputDiagnostics: List<String> = emptyList(),
     val themeId: AppThemeId = AppThemeId.PURE_HYPER,
     val accentId: AppAccentId = AppAccentId.AUTO,
+    val preampDb: Double = 0.0,
+    val autoPreamp: Boolean = true,
+    val activeAbSlot: Char = 'A',
+    val hasSlotB: Boolean = false,
 )
 
 class MoondropViewModel(application: Application) : AndroidViewModel(application) {
@@ -103,6 +113,8 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
     private var allAutoEqEntries: List<AutoEqEntry> = emptyList()
     private var livePushJob: Job? = null
     private var widgetSyncJob: Job? = null
+    private var slotA: EqSlot? = null
+    private var slotB: EqSlot? = null
 
     private val _uiState = MutableStateFlow(buildInitialState())
     val uiState: StateFlow<MoondropUiState> = _uiState.asStateFlow()
@@ -200,7 +212,84 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
             hasBluetoothPermission = btTransport.hasBluetoothConnectPermission(),
             themeId = AppThemeId.fromKey(snap.themeId),
             accentId = AppAccentId.fromKey(snap.accentId),
+            preampDb = snap.preampDb,
+            autoPreamp = snap.autoPreamp,
         )
+    }
+
+    fun effectivePreampDb(st: MoondropUiState = _uiState.value): Double {
+        return if (st.autoPreamp) {
+            BiquadMath.computeSafePreampDb(st.bands)
+        } else {
+            st.preampDb.coerceIn(-18.0, 6.0)
+        }
+    }
+
+    fun setPreampDb(db: Double) {
+        val rounded = kotlin.math.round(db.coerceIn(-18.0, 6.0) * 10.0) / 10.0
+        _uiState.update { it.copy(preampDb = rounded, autoPreamp = false) }
+        scheduleThrottledPersistAndWidget()
+        scheduleLivePushIfEnabled()
+    }
+
+    fun setAutoPreamp(auto: Boolean) {
+        _uiState.update { st ->
+            val nextPre = if (auto) BiquadMath.computeSafePreampDb(st.bands) else st.preampDb
+            st.copy(autoPreamp = auto, preampDb = nextPre)
+        }
+        persistAndSyncWidget(
+            if (auto) "Preamp automático anti-clipping activado" else "Preamp manual activado",
+            false,
+        )
+        if (_uiState.value.livePreview) {
+            applyCurrentBands(commit = false)
+        }
+    }
+
+    fun selectAbSlot(target: Char) {
+        val st = _uiState.value
+        if (st.activeAbSlot == target) return
+        val curSlot = EqSlot(st.bands, st.preampDb, st.autoPreamp)
+        if (st.activeAbSlot == 'A') slotA = curSlot else slotB = curSlot
+
+        val loaded = if (target == 'A') slotA else slotB
+        if (loaded != null) {
+            val count = st.activeDevice?.maxBands ?: BiquadMath.DEFAULT_VIRTUAL_BANDS
+            _uiState.update {
+                it.copy(
+                    bands = fitBandCount(loaded.bands, count),
+                    preampDb = loaded.preampDb,
+                    autoPreamp = loaded.autoPreamp,
+                    activeAbSlot = target,
+                    hasSlotB = slotB != null,
+                    selectedBandIdx = it.selectedBandIdx.coerceIn(0, count - 1),
+                )
+            }
+            persistAndSyncWidget("Comparación A/B: Slot $target activo", false)
+            applyCurrentBands(commit = false)
+        } else {
+            if (target == 'A') slotA = curSlot else slotB = curSlot
+            _uiState.update {
+                it.copy(
+                    activeAbSlot = target,
+                    hasSlotB = slotB != null,
+                )
+            }
+            persistAndSyncWidget("Slot $target creado (copia) · Edita y alterna A/B", false)
+        }
+    }
+
+    fun copyCurrentToOtherAbSlot() {
+        val st = _uiState.value
+        val curSlot = EqSlot(st.bands, st.preampDb, st.autoPreamp)
+        if (st.activeAbSlot == 'A') {
+            slotB = curSlot
+            _uiState.update { it.copy(hasSlotB = true) }
+            setStatus("Curva y preamp copiados de A → B", false)
+        } else {
+            slotA = curSlot
+            setStatus("Curva y preamp copiados de B → A", false)
+        }
     }
 
     fun selectTheme(theme: AppThemeId) {
@@ -418,6 +507,8 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
                 activePresetName = "Plano (0 dB)",
                 targetFrCurve = emptyList(),
                 targetLabel = "",
+                preampDb = 0.0,
+                autoPreamp = true,
             )
         }
         persistAndSyncWidget("EQ reiniciado a plano (0 dB)", false)
@@ -720,7 +811,19 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
         setStatus("Preset eliminado: $name", false)
     }
 
-    fun exportParametricEqText(): String = AutoEqParser.exportParametricEq(_uiState.value.bands)
+    fun exportParametricEqText(): String =
+        AutoEqParser.exportParametricEq(_uiState.value.bands, effectivePreampDb())
+
+    fun exportEqInFormat(format: String): String {
+        val st = _uiState.value
+        val preamp = effectivePreampDb(st)
+        return when (format.lowercase()) {
+            "easyeffects", "json" -> AutoEqParser.exportEasyEffectsJson(st.bands, preamp)
+            "camilladsp", "yaml" -> AutoEqParser.exportCamillaDspYaml(st.bands, preamp)
+            "wavelet", "graphiceq" -> AutoEqParser.exportWaveletGraphicEq(st.bands)
+            else -> AutoEqParser.exportParametricEq(st.bands, preamp)
+        }
+    }
 
     fun importParametricEqText(text: String) {
         val parsed = AutoEqParser.parseParametricEq(text)
@@ -851,6 +954,8 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
                 btSessionZeroFallback = st.btSessionZeroFallback,
                 themeId = st.themeId.key,
                 accentId = st.accentId.key,
+                preampDb = st.preampDb,
+                autoPreamp = st.autoPreamp,
             )
         }
         if (status != null) {

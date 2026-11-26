@@ -68,6 +68,10 @@ fun EqScreen(
     onDragEnd: () -> Unit,
     onToggleLive: (Boolean) -> Unit,
     onApply: (commit: Boolean) -> Unit,
+    onSetPreampDb: (Double) -> Unit = {},
+    onSetAutoPreamp: (Boolean) -> Unit = {},
+    onSelectAbSlot: (Char) -> Unit = {},
+    onCopyToOtherAbSlot: () -> Unit = {},
     onPowerOffAndExit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -178,6 +182,39 @@ fun EqScreen(
                     modifier = Modifier.weight(0.85f),
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "A/B",
+                    color = t.textMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                NothingPillChip(
+                    label = "SLOT A",
+                    selected = state.activeAbSlot == 'A',
+                    onClick = { onSelectAbSlot('A') },
+                    accentRed = true,
+                    modifier = Modifier.weight(1f),
+                )
+                NothingPillChip(
+                    label = "SLOT B",
+                    selected = state.activeAbSlot == 'B',
+                    onClick = { onSelectAbSlot('B') },
+                    accentRed = true,
+                    modifier = Modifier.weight(1f),
+                )
+                NothingPillChip(
+                    label = if (state.activeAbSlot == 'A') "A → B" else "B → A",
+                    selected = false,
+                    onClick = onCopyToOtherAbSlot,
+                    modifier = Modifier.weight(0.85f),
+                )
+            }
         }
 
         // 2. Superposed Interactive EQ/FR Curve
@@ -194,6 +231,79 @@ fun EqScreen(
             onDragBand = onDragBand,
             onDragEnd = onDragEnd,
         )
+
+        // 2b. Manual Preamp & Anti-Clipping Headroom Card
+        val effPreamp = if (state.autoPreamp) {
+            BiquadMath.computeSafePreampDb(state.bands)
+        } else {
+            state.preampDb.coerceIn(-18.0, 6.0)
+        }
+        val peakBoost = BiquadMath.peakBoostDb(state.bands)
+        val marginDb = BiquadMath.headroomMarginDb(state.bands, effPreamp)
+        val headroomOk = marginDb >= 0.0
+        val headroomColor = if (headroomOk) t.emerald else t.amber
+
+        NothingCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    NothingSectionLabel(
+                        text = "Preamp y Headroom",
+                        trailing = String.format(Locale.US, "PICO +%.1f dB", peakBoost),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = if (headroomOk) {
+                            String.format(Locale.US, "MARGEN +%.1f dB · SIN CLIPPING", marginDb)
+                        } else {
+                            String.format(Locale.US, "⚠ CLIPPING POTENCIAL DE %.1f dB", -marginDb)
+                        },
+                        color = headroomColor,
+                        fontFamily = ConsolasFontFamily,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                NothingPillChip(
+                    label = if (state.autoPreamp) "AUTO ON" else "MANUAL",
+                    selected = state.autoPreamp,
+                    onClick = { onSetAutoPreamp(!state.autoPreamp) },
+                    accentRed = false,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            SliderHeaderRow(
+                label = "PREAMP",
+                valueText = String.format(Locale.US, "%+.1f dB", effPreamp),
+                onMinus = { onSetPreampDb(effPreamp - 0.5) },
+                onPlus = { onSetPreampDb(effPreamp + 0.5) },
+            )
+            Slider(
+                value = effPreamp.toFloat().coerceIn(-18f, 6f),
+                valueRange = -18f..6f,
+                onValueChange = { v -> onSetPreampDb(v.toDouble()) },
+                colors = nothingSliderColors(),
+            )
+            val usedFraction = ((peakBoost + effPreamp.coerceAtLeast(-18.0)).coerceIn(0.0, 12.0) / 12.0).toFloat()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(t.insetBg),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(usedFraction.coerceIn(0.04f, 1f))
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(headroomColor),
+                )
+            }
+        }
 
         // 3. Band Selector Strip
         Row(

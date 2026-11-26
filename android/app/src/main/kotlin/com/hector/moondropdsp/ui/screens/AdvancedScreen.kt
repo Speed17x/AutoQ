@@ -71,6 +71,7 @@ fun AdvancedScreen(
     onSavePreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
     onExportApo: () -> String,
+    onExportFormat: (String) -> String = { onExportApo() },
     onImportApo: (String) -> Unit,
     onSetBtGlobalEq: (Boolean) -> Unit,
     onSetBtSessionZero: (Boolean) -> Unit,
@@ -87,6 +88,7 @@ fun AdvancedScreen(
     var newPresetName by remember { mutableStateOf("") }
     var showImportDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
+    var selectedExportFmt by remember { mutableStateOf("apo") }
 
     Column(
         modifier = modifier
@@ -418,26 +420,53 @@ fun AdvancedScreen(
             }
         }
 
-        // 4. EqualizerAPO Import / Export
+        // 4. Multi-Format Export / EqualizerAPO Import
         NothingCard {
-            NothingSectionLabel(text = "EqualizerAPO ParametricEQ.txt")
+            NothingSectionLabel(
+                text = "Importar / Exportar EQ",
+                trailing = selectedExportFmt.uppercase(),
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    "apo" to "APO",
+                    "easyeffects" to "EasyEffects",
+                    "camilladsp" to "CamillaDSP",
+                    "wavelet" to "Wavelet",
+                ).forEach { (key, label) ->
+                    NothingPillChip(
+                        label = label,
+                        selected = selectedExportFmt == key,
+                        onClick = { selectedExportFmt = key },
+                    )
+                }
+            }
             Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 NothingOutlineButton(
-                    text = "Importar texto",
+                    text = "Importar APO",
                     onClick = { showImportDialog = true },
                     modifier = Modifier.weight(1f),
                 )
                 NothingOutlineButton(
-                    text = "Copiar APO",
+                    text = "Copiar ${selectedExportFmt.uppercase()}",
                     onClick = {
-                        val txt = onExportApo()
+                        val txt = onExportFormat(selectedExportFmt)
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        cm?.setPrimaryClip(ClipData.newPlainText("Moondrop ParametricEQ", txt))
-                        Toast.makeText(context, "ParametricEQ copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                        cm?.setPrimaryClip(ClipData.newPlainText("AutoQ ${selectedExportFmt.uppercase()}", txt))
+                        Toast.makeText(
+                            context,
+                            "Perfil ${selectedExportFmt.uppercase()} copiado al portapapeles",
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -495,7 +524,7 @@ fun AdvancedScreen(
 
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Protocolos USB DSP (v2.1.0): KTMicro 5B · Moondrop 8B · WalkPlay · FiiO 5/10B · Qudelix-5K · Topping · Fosi DS3 · JDS Element IV",
+                text = "Protocolos USB DSP (v2.2.0): KTMicro 5B · Moondrop 8B · WalkPlay · FiiO 5/10B · Qudelix-5K · Topping · Fosi DS3 · JDS Element IV",
                 color = t.textSubtle,
                 fontFamily = ConsolasFontFamily,
                 fontSize = 10.sp,

@@ -363,4 +363,37 @@ class MoondropDspCoreTest {
         val lightCustom = tokensFor(AppThemeId.PURE_LIGHT, AppAccentId.PURPLE)
         assertEquals(AppAccentId.PURPLE.lightColor, lightCustom.accent)
     }
+
+    @Test
+    fun preampHeadroomAndMultiFormatExportersWork() {
+        val bands = listOf(
+            FilterBand(FilterType.LOW_SHELF, 105.0, 4.0, 0.707),
+            FilterBand(FilterType.PEAKING, 1000.0, 2.5, 1.4),
+            FilterBand(FilterType.HIGH_SHELF, 8500.0, -2.0, 0.707),
+        )
+        val peak = BiquadMath.peakBoostDb(bands)
+        assertTrue("Expected positive peak boost, got $peak", peak > 3.5)
+        val safe = BiquadMath.computeSafePreampDb(bands)
+        assertTrue(BiquadMath.headroomMarginDb(bands, safe) >= 0.0)
+        assertTrue(BiquadMath.headroomMarginDb(bands, 0.0) < -3.0)
+
+        val ee = AutoEqParser.exportEasyEffectsJson(bands, safe)
+        assertTrue(ee.contains("\"equalizer#0\""))
+        assertTrue(ee.contains("\"Lo-shelf\""))
+        assertTrue(ee.contains("\"num-bands\": 3"))
+
+        val cdsp = AutoEqParser.exportCamillaDspYaml(bands, safe)
+        assertTrue(cdsp.contains("type: Gain"))
+        assertTrue(cdsp.contains("type: Lowshelf"))
+        assertTrue(cdsp.contains("pipeline:"))
+
+        val wavelet = AutoEqParser.exportWaveletGraphicEq(bands)
+        assertTrue(wavelet.startsWith("GraphicEQ: 20 "))
+        val pairs = wavelet.trim().removePrefix("GraphicEQ:").split(";")
+        assertEquals(127, pairs.size)
+        for (p in pairs) {
+            val db = p.trim().split(Regex("\\s+"))[1].toDouble()
+            assertTrue("Wavelet GraphicEQ peak must stay <= 0 dB, got $db", db <= 0.01)
+        }
+    }
 }

@@ -677,8 +677,17 @@ pub fn parse_parametric_eq(text: &str) -> Vec<FilterBand> {
 }
 
 pub fn export_parametric_eq(bands: &[FilterBand]) -> String {
+    export_parametric_eq_with_preamp(bands, 0.0)
+}
+
+pub fn export_parametric_eq_with_preamp(bands: &[FilterBand], preamp_db: f64) -> String {
+    let preamp = if preamp_db.is_finite() {
+        preamp_db.clamp(-18.0, 6.0)
+    } else {
+        0.0
+    };
     let mut lines = Vec::with_capacity(bands.len() + 1);
-    lines.push("Preamp: 0.0 dB".to_string());
+    lines.push(format!("Preamp: {preamp:.1} dB"));
     for (i, b) in bands.iter().enumerate() {
         let bc = b.clamped();
         lines.push(format!(
@@ -693,6 +702,110 @@ pub fn export_parametric_eq(bands: &[FilterBand]) -> String {
     let mut out = lines.join("\n");
     out.push('\n');
     out
+}
+
+pub fn export_easyeffects_json(bands: &[FilterBand], preamp_db: f64) -> String {
+    let clean: Vec<FilterBand> = bands.iter().map(FilterBand::clamped).collect();
+    let preamp = if preamp_db.is_finite() {
+        (preamp_db.clamp(-18.0, 6.0) * 100.0).round() / 100.0
+    } else {
+        0.0
+    };
+    let mut ch_bands = serde_json::Map::new();
+    for (i, b) in clean.iter().enumerate() {
+        let ftype = match b.filter_type {
+            FilterType::Peaking => "Bell",
+            FilterType::LowShelf => "Lo-shelf",
+            FilterType::HighShelf => "Hi-shelf",
+        };
+        ch_bands.insert(
+            format!("band{i}"),
+            serde_json::json!({
+                "frequency": b.frequency.round(),
+                "gain": b.gain,
+                "mode": "RLC (BT)",
+                "mute": false,
+                "q": b.q,
+                "slope": "x1",
+                "solo": false,
+                "type": ftype,
+                "width": 4.0,
+            }),
+        );
+    }
+    let eq_obj = serde_json::json!({
+        "output": {
+            "blocklist": [],
+            "plugins_order": ["equalizer#0"],
+            "equalizer#0": {
+                "balance": 0.0,
+                "bypass": false,
+                "input-gain": preamp,
+                "left": serde_json::Value::Object(ch_bands.clone()),
+                "mode": "IIR",
+                "num-bands": clean.len(),
+                "output-gain": 0.0,
+                "pitch-left": 0.0,
+                "pitch-right": 0.0,
+                "right": serde_json::Value::Object(ch_bands),
+                "split-channels": false,
+            }
+        }
+    });
+    serde_json::to_string_pretty(&eq_obj).unwrap_or_default()
+}
+
+pub fn export_camilladsp_yaml(bands: &[FilterBand], preamp_db: f64) -> String {
+    let clean: Vec<FilterBand> = bands.iter().map(FilterBand::clamped).collect();
+    let preamp = if preamp_db.is_finite() {
+        (preamp_db.clamp(-18.0, 6.0) * 100.0).round() / 100.0
+    } else {
+        0.0
+    };
+    let mut out = String::from("# Generado por AutoQ — CamillaDSP v2 Filters\nfilters:\n");
+    out.push_str(&format!(
+        "  preamp:\n    type: Gain\n    parameters:\n      gain: {preamp:.2}\n      inverted: false\n      mute: false\n"
+    ));
+    let mut names = vec!["preamp".to_string()];
+    for (i, b) in clean.iter().enumerate() {
+        let name = format!("band_{:02}", i + 1);
+        let bq_type = match b.filter_type {
+            FilterType::Peaking => "Peaking",
+            FilterType::LowShelf => "Lowshelf",
+            FilterType::HighShelf => "Highshelf",
+        };
+        out.push_str(&format!(
+            "  {name}:\n    type: Biquad\n    parameters:\n      type: {bq_type}\n      freq: {}\n      gain: {:.2}\n      q: {:.3}\n",
+            b.frequency.round() as i64,
+            b.gain,
+            b.q
+        ));
+        names.push(name);
+    }
+    out.push_str("pipeline:\n  - type: Filter\n    channels: [0, 1]\n    names:\n");
+    for n in names {
+        out.push_str(&format!("      - {n}\n"));
+    }
+    out
+}
+
+pub fn export_wavelet_graphiceq(bands: &[FilterBand]) -> String {
+    let freqs = crate::biquad::geomspace(20.0, 20_000.0, 127);
+    let resp = crate::biquad::combined_response_db(bands, &freqs, crate::biquad::SAMPLE_RATE_HZ);
+    let max_pos = resp
+        .iter()
+        .copied()
+        .filter(|v| v.is_finite())
+        .fold(0.0_f64, f64::max);
+    let pairs: Vec<String> = freqs
+        .iter()
+        .zip(resp.iter())
+        .map(|(&f, &g)| {
+            let norm = ((g - max_pos) * 10.0).round() / 10.0;
+            format!("{} {:.1}", f.round() as i64, norm)
+        })
+        .collect();
+    format!("GraphicEQ: {}\n", pairs.join("; "))
 }
 
 pub fn fetch_target_csv(filename: &str, force_refresh: bool) -> Result<(Vec<f64>, Vec<f64>), String> {
@@ -1090,5 +1203,33 @@ Filter 3: ON HSC Fc 10000 Hz Gain 1.5 dB Q 0.707
         let exported = export_parametric_eq(&bands);
         let reparsed = parse_parametric_eq(&exported);
         assert_eq!(reparsed, bands);
+
+        let apo_pre = export_parametric_eq_with_preamp(&bands, -4.2);
+        assert!(apo_pre.starts_with("Preamp: -4.2 dB\n"));
+
+        let ee_raw = export_easyeffects_json(&bands, -3.5);
+        let ee_val: serde_json::Value = serde_json::from_str(&ee_raw).unwrap();
+        assert_eq!(ee_val["output"]["equalizer#0"]["num-bands"], 3);
+        assert_eq!(ee_val["output"]["equalizer#0"]["input-gain"], -3.5);
+        assert_eq!(ee_val["output"]["equalizer#0"]["left"]["band0"]["type"], "Lo-shelf");
+
+        let cdsp = export_camilladsp_yaml(&bands, -3.5);
+        assert!(cdsp.contains("type: Gain"));
+        assert!(cdsp.contains("gain: -3.50"));
+        assert!(cdsp.contains("band_01:"));
+        assert!(cdsp.contains("type: Lowshelf"));
+        assert!(cdsp.contains("pipeline:"));
+
+        let wavelet = export_wavelet_graphiceq(&bands);
+        assert!(wavelet.starts_with("GraphicEQ: 20 "));
+        let body = wavelet.trim().strip_prefix("GraphicEQ:").unwrap();
+        let points: Vec<&str> = body.split(';').collect();
+        assert_eq!(points.len(), 127);
+        for pt in points {
+            let vals: Vec<&str> = pt.trim().split_whitespace().collect();
+            assert_eq!(vals.len(), 2);
+            let db: f64 = vals[1].parse().unwrap();
+            assert!(db <= 0.01, "Wavelet GraphicEQ must normalize peak <= 0 dB, got {db}");
+        }
     }
 }

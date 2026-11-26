@@ -15,14 +15,20 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
 import java.security.MessageDigest
 import kotlin.math.abs
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 @Serializable
@@ -322,9 +328,10 @@ object AutoEqParser {
         return bands
     }
 
-    fun exportParametricEq(bands: List<FilterBand>): String {
+    fun exportParametricEq(bands: List<FilterBand>, preampDb: Double = 0.0): String {
+        val safePreamp = if (preampDb.isFinite()) preampDb.coerceIn(-18.0, 6.0) else 0.0
         val sb = StringBuilder()
-        sb.appendLine("Preamp: 0.0 dB")
+        sb.appendLine(String.format(java.util.Locale.US, "Preamp: %.1f dB", safePreamp))
         bands.forEachIndexed { idx, band ->
             val b = band.clamped()
             sb.appendLine(
@@ -340,6 +347,99 @@ object AutoEqParser {
             )
         }
         return sb.toString()
+    }
+
+    fun exportEasyEffectsJson(bands: List<FilterBand>, preampDb: Double): String {
+        val clean = bands.map { it.clamped() }
+        val safePreamp = if (preampDb.isFinite()) round(preampDb.coerceIn(-18.0, 6.0) * 100.0) / 100.0 else 0.0
+        val chObj = buildJsonObject {
+            clean.forEachIndexed { idx, b ->
+                val ftype = when (b.type) {
+                    FilterType.PEAKING -> "Bell"
+                    FilterType.LOW_SHELF -> "Lo-shelf"
+                    FilterType.HIGH_SHELF -> "Hi-shelf"
+                }
+                putJsonObject("band$idx") {
+                    put("frequency", b.frequency.roundToInt())
+                    put("gain", b.gain)
+                    put("mode", "RLC (BT)")
+                    put("mute", false)
+                    put("q", b.q)
+                    put("slope", "x1")
+                    put("solo", false)
+                    put("type", ftype)
+                    put("width", 4.0)
+                }
+            }
+        }
+        val root = buildJsonObject {
+            putJsonObject("output") {
+                putJsonArray("blocklist") {}
+                putJsonArray("plugins_order") { add("equalizer#0") }
+                putJsonObject("equalizer#0") {
+                    put("balance", 0.0)
+                    put("bypass", false)
+                    put("input-gain", safePreamp)
+                    put("left", chObj)
+                    put("mode", "IIR")
+                    put("num-bands", clean.size)
+                    put("output-gain", 0.0)
+                    put("pitch-left", 0.0)
+                    put("pitch-right", 0.0)
+                    put("right", chObj)
+                    put("split-channels", false)
+                }
+            }
+        }
+        return Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), root)
+    }
+
+    fun exportCamillaDspYaml(bands: List<FilterBand>, preampDb: Double): String {
+        val clean = bands.map { it.clamped() }
+        val safePreamp = if (preampDb.isFinite()) round(preampDb.coerceIn(-18.0, 6.0) * 100.0) / 100.0 else 0.0
+        val sb = StringBuilder()
+        sb.appendLine("# Generado por AutoQ — CamillaDSP v2 Filters")
+        sb.appendLine("filters:")
+        sb.appendLine("  preamp:")
+        sb.appendLine("    type: Gain")
+        sb.appendLine("    parameters:")
+        sb.appendLine(String.format(java.util.Locale.US, "      gain: %.2f", safePreamp))
+        sb.appendLine("      inverted: false")
+        sb.appendLine("      mute: false")
+        val names = mutableListOf("preamp")
+        clean.forEachIndexed { idx, b ->
+            val name = String.format(java.util.Locale.US, "band_%02d", idx + 1)
+            val bqType = when (b.type) {
+                FilterType.PEAKING -> "Peaking"
+                FilterType.LOW_SHELF -> "Lowshelf"
+                FilterType.HIGH_SHELF -> "Highshelf"
+            }
+            sb.appendLine("  $name:")
+            sb.appendLine("    type: Biquad")
+            sb.appendLine("    parameters:")
+            sb.appendLine("      type: $bqType")
+            sb.appendLine("      freq: ${b.frequency.roundToInt()}")
+            sb.appendLine(String.format(java.util.Locale.US, "      gain: %.2f", b.gain))
+            sb.appendLine(String.format(java.util.Locale.US, "      q: %.3f", b.q))
+            names += name
+        }
+        sb.appendLine("pipeline:")
+        sb.appendLine("  - type: Filter")
+        sb.appendLine("    channels: [0, 1]")
+        sb.appendLine("    names:")
+        names.forEach { sb.appendLine("      - $it") }
+        return sb.toString()
+    }
+
+    fun exportWaveletGraphicEq(bands: List<FilterBand>): String {
+        val freqs = BiquadMath.logSpace(20.0, 20000.0, 127)
+        val resp = BiquadMath.combinedResponseDb(bands, freqs)
+        val maxPos = resp.filter { it.isFinite() }.maxOrNull()?.coerceAtLeast(0.0) ?: 0.0
+        val pairs = freqs.indices.joinToString("; ") { i ->
+            val norm = round((resp[i] - maxPos) * 10.0) / 10.0
+            String.format(java.util.Locale.US, "%d %.1f", freqs[i].roundToInt(), norm)
+        }
+        return "GraphicEQ: $pairs\n"
     }
 
     fun parseTargetCsv(text: String): Pair<DoubleArray, DoubleArray> {

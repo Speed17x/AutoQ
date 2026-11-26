@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a 100% native Rust Debian/Ubuntu package (`autoq_<version>_amd64.deb`)
-# ZERO Python / PySide6 dependencies!
-# Installable via: sudo apt install ./autoq_2.0.0_amd64.deb
+# Build a native Rust Debian/Ubuntu package (`autoq_<version>_amd64.deb`)
+# Installable via: sudo apt install ./autoq_2.2.0_amd64.deb
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION="${1:-2.1.2}"
+VERSION="${1:-2.2.0}"
 VERSION="${VERSION#v}"
 ARCH="amd64"
 PKG_NAME="autoq_${VERSION}_${ARCH}"
@@ -56,11 +55,11 @@ Depends: libc6, libgcc-s1, libgl1, libxkbcommon0
 Recommends: pipewire, pulseaudio-utils
 Maintainer: Speed17x <https://github.com/Speed17x/AutoQ>
 Homepage: https://github.com/Speed17x/AutoQ
-Description: Universal Parametric EQ & AutoEQ Suite (100% Native Rust)
- Native Rust Nothing OS desktop app (autoq) and CLI (autoq-cli) with zero
- Python dependencies. Supports multiprotocol USB-C HID DSP (KTMicro 5B,
- Moondrop 8B, WalkPlay, FiiO 5/10B), 10-band PipeWire PEQ, and 14,500+
- AutoEq & Squiglink headphone curves.
+Description: Universal Parametric EQ & AutoEQ Suite (Native Rust)
+ Native Rust desktop app (autoq), daemon (autoq-daemon) and CLI (autoq-cli).
+ Supports multiprotocol USB-C HID/Serial DSP (KTMicro 5B, Moondrop 8B,
+ WalkPlay, FiiO 5/10B, Qudelix-5K, Topping, Fosi DS3, JDS Element IV),
+ 10-band PipeWire PEQ, and 14,500+ AutoEq & Squiglink headphone curves.
 EOF
 
 cat > "${WORK_DIR}/DEBIAN/postinst" << 'EOF'

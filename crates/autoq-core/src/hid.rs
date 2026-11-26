@@ -840,6 +840,9 @@ pub fn fosi_decode_band_packet(data: &[u8]) -> Option<(usize, FilterBand, bool)>
     let freq = f32::from_le_bytes([data[off + 5], data[off + 6], data[off + 7], data[off + 8]]) as f64;
     let q = f32::from_le_bytes([data[off + 9], data[off + 10], data[off + 11], data[off + 12]]) as f64;
     let gain = f32::from_le_bytes([data[off + 17], data[off + 18], data[off + 19], data[off + 20]]) as f64;
+    if !freq.is_finite() || !q.is_finite() || !gain.is_finite() {
+        return None;
+    }
     let disabled = ftype_raw == 0 || (gain.abs() < 1e-6 && freq <= 0.0);
     let band = if !disabled && (10.0..=24_000.0).contains(&freq) {
         FilterBand::new(fosi_code_to_type(ftype_raw), freq, gain, q.max(0.1)).clamped()
@@ -1762,7 +1765,7 @@ fn write_eq_on_channel(
 #[cfg(target_os = "linux")]
 mod imp {
     use super::*;
-    use std::ffi::CString;
+    use crate::posix_fd::PosixFd;
     use std::fs;
     use std::path::Path;
 
@@ -1850,13 +1853,13 @@ mod imp {
                 continue;
             }
             if raw.protocol == Some(HidProtocol::JdsElement) {
+                found.push(crate::jds_serial::make_jds_device_info(raw.path, raw.hid_name));
                 continue;
             }
             if let Some(info) = classify_hid_device(&raw.path, raw.vid, raw.pid, &raw.hid_name) {
                 found.push(info);
             }
         }
-        found.extend(crate::jds_serial::scan_jds_serial_devices());
         found
     }
 
@@ -1885,45 +1888,26 @@ mod imp {
     }
 
     pub struct LinuxHidrawChannel {
-        fd: libc::c_int,
+        fd: PosixFd,
     }
 
     impl LinuxHidrawChannel {
         pub fn open(info: &MoondropDeviceInfo) -> Result<Self, String> {
-            let cpath = CString::new(info.hidraw_path.as_str()).map_err(|e| e.to_string())?;
-            let fd = unsafe { libc::open(cpath.as_ptr(), libc::O_RDWR | libc::O_NONBLOCK) };
-            if fd < 0 {
-                let err = std::io::Error::last_os_error();
+            let fd = PosixFd::open(&info.hidraw_path, libc::O_RDWR | libc::O_NONBLOCK).map_err(|err| {
                 if err.kind() == std::io::ErrorKind::PermissionDenied {
-                    return Err(format!(
+                    format!(
                         "Sin permisos para abrir {} ({}, {}). Instala las reglas udev desde AVANZADO.",
                         info.hidraw_path, info.display_name, info.vid_pid()
-                    ));
+                    )
+                } else {
+                    format!("Error abriendo {}: {err}", info.hidraw_path)
                 }
-                return Err(format!("Error abriendo {}: {err}", info.hidraw_path));
-            }
+            })?;
             Ok(Self { fd })
         }
 
         fn wait_readable(&self, timeout_ms: i32) -> bool {
-            let mut pfd = libc::pollfd {
-                fd: self.fd,
-                events: libc::POLLIN,
-                revents: 0,
-            };
-            let rc = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
-            rc > 0 && (pfd.revents & libc::POLLIN) != 0
-        }
-    }
-
-    impl Drop for LinuxHidrawChannel {
-        fn drop(&mut self) {
-            if self.fd >= 0 {
-                unsafe {
-                    libc::close(self.fd);
-                }
-                self.fd = -1;
-            }
+            self.fd.wait_readable(timeout_ms)
         }
     }
 
@@ -1931,82 +1915,39 @@ mod imp {
         fn drain_input(&mut self) {
             let mut buf = [0u8; 64];
             while self.wait_readable(0) {
-                let n = unsafe {
-                    libc::read(
-                        self.fd,
-                        buf.as_mut_ptr() as *mut libc::c_void,
-                        buf.len(),
-                    )
-                };
-                if n <= 0 {
-                    break;
+                match self.fd.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
                 }
             }
         }
 
         fn write_report(&mut self, data: &[u8]) -> Result<(), String> {
-            let n = unsafe {
-                libc::write(
-                    self.fd,
-                    data.as_ptr() as *const libc::c_void,
-                    data.len(),
-                )
-            };
-            if n < 0 {
-                let err = std::io::Error::last_os_error();
-                return Err(format!("Error escribiendo comando HID: {err}"));
-            }
-            Ok(())
+            self.fd
+                .write(data)
+                .map(|_| ())
+                .map_err(|err| format!("Error escribiendo comando HID: {err}"))
         }
 
         fn read_report(&mut self, buf: &mut [u8], timeout_ms: u32) -> Result<usize, String> {
             if !self.wait_readable(timeout_ms as i32) {
                 return Ok(0);
             }
-            let n = unsafe {
-                libc::read(
-                    self.fd,
-                    buf.as_mut_ptr() as *mut libc::c_void,
-                    buf.len(),
-                )
-            };
-            if n < 0 {
-                let err = std::io::Error::last_os_error();
-                return Err(format!("Error leyendo respuesta HID: {err}"));
-            }
-            Ok(n as usize)
+            self.fd
+                .read(buf)
+                .map_err(|err| format!("Error leyendo respuesta HID: {err}"))
         }
 
         fn send_feature_report(&mut self, data: &[u8]) -> Result<(), String> {
-            if data.is_empty() {
-                return Err("Feature report vacío.".to_string());
-            }
-            let req = ((3u32 << 30)
-                | ((data.len() as u32) << 16)
-                | ((b'H' as u32) << 8)
-                | 0x06) as libc::Ioctl;
-            let rc = unsafe { libc::ioctl(self.fd, req, data.as_ptr()) };
-            if rc < 0 {
-                let err = std::io::Error::last_os_error();
-                return Err(format!("Error HIDIOCSFEATURE: {err}"));
-            }
-            Ok(())
+            self.fd
+                .ioctl_hid_set_feature(data)
+                .map_err(|err| format!("Error HIDIOCSFEATURE: {err}"))
         }
 
         fn get_feature_report(&mut self, buf: &mut [u8]) -> Result<usize, String> {
-            if buf.is_empty() {
-                return Err("Buffer feature report vacío.".to_string());
-            }
-            let req = ((3u32 << 30)
-                | ((buf.len() as u32) << 16)
-                | ((b'H' as u32) << 8)
-                | 0x07) as libc::Ioctl;
-            let rc = unsafe { libc::ioctl(self.fd, req, buf.as_mut_ptr()) };
-            if rc < 0 {
-                let err = std::io::Error::last_os_error();
-                return Err(format!("Error HIDIOCGFEATURE: {err}"));
-            }
-            Ok(rc as usize)
+            self.fd
+                .ioctl_hid_get_feature(buf)
+                .map_err(|err| format!("Error HIDIOCGFEATURE: {err}"))
         }
     }
 
@@ -2075,14 +2016,17 @@ mod imp {
     pub fn scan_moondrop_devices() -> Vec<MoondropDeviceInfo> {
         let mut found = Vec::new();
         for raw in scan_all_hid_devices() {
-            if !raw.recognized || raw.protocol == Some(HidProtocol::JdsElement) {
+            if !raw.recognized {
+                continue;
+            }
+            if raw.protocol == Some(HidProtocol::JdsElement) {
+                found.push(crate::jds_serial::make_jds_device_info(raw.path, raw.hid_name));
                 continue;
             }
             if let Some(info) = classify_hid_device(&raw.path, raw.vid, raw.pid, &raw.hid_name) {
                 found.push(info);
             }
         }
-        found.extend(crate::jds_serial::scan_jds_serial_devices());
         found
     }
 
@@ -2385,5 +2329,30 @@ mod tests {
         assert_eq!(bands[0].frequency, 1000.0);
         assert!((bands[0].gain - 3.0).abs() < 1e-6);
         assert!((bands[0].q - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn rejects_truncated_and_malformed_hid_packets() {
+        assert!(fiio_decode_filter_payload(&[]).is_none());
+        assert!(fiio_decode_filter_payload(&[0xBB, 0x0B, 0x00, 0x00, 0x15]).is_none());
+        assert!(fiio_decode_filter_payload(&[0xAA; 16]).is_none());
+
+        assert!(fosi_decode_band_packet(&[]).is_none());
+        assert!(fosi_decode_band_packet(&[0x77, 0x8D, 0x00, 0x01]).is_none());
+        let mut nan_fosi = [0u8; 24];
+        nan_fosi[0] = 0x77;
+        nan_fosi[4] = 2;
+        nan_fosi[5..9].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert!(fosi_decode_band_packet(&nan_fosi).is_none());
+
+        assert!(topping_parse_frame(&[]).is_none());
+        assert!(topping_parse_frame(&[0x22, 0x33, 0x20, 0x01, 0x01]).is_none());
+        let mut bad_end = [0u8; 16];
+        bad_end[0] = 0x22;
+        bad_end[1] = 0x33;
+        bad_end[13] = 0x00;
+        assert!(topping_parse_frame(&bad_end).is_none());
+
+        assert!(qudelix_parse_user_eq_preset(&[0u8; 40]).is_err());
     }
 }

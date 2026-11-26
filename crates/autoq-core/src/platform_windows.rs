@@ -13,6 +13,14 @@ pub const AUTOQ_APO_FILENAME: &str = "autoq_eq.txt";
 pub struct WinVirtualState {
     pub enabled: bool,
     pub bands: Vec<FilterBand>,
+    #[serde(default)]
+    pub preamp_db: f64,
+    #[serde(default = "default_true")]
+    pub auto_preamp: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 pub fn load_win_virtual_state() -> WinVirtualState {
@@ -25,10 +33,21 @@ pub fn load_win_virtual_state() -> WinVirtualState {
     WinVirtualState {
         enabled: true,
         bands: flat_bands(DEFAULT_VIRTUAL_BANDS),
+        preamp_db: 0.0,
+        auto_preamp: true,
     }
 }
 
 pub fn save_win_virtual_state(enabled: bool, bands: &[FilterBand]) {
+    save_win_virtual_state_full(enabled, bands, 0.0, true);
+}
+
+pub fn save_win_virtual_state_full(
+    enabled: bool,
+    bands: &[FilterBand],
+    preamp_db: f64,
+    auto_preamp: bool,
+) {
     let path = win_state_file();
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
@@ -36,6 +55,12 @@ pub fn save_win_virtual_state(enabled: bool, bands: &[FilterBand]) {
     let st = WinVirtualState {
         enabled,
         bands: bands.iter().map(FilterBand::clamped).collect(),
+        preamp_db: if preamp_db.is_finite() {
+            (preamp_db.clamp(-18.0, 6.0) * 100.0).round() / 100.0
+        } else {
+            0.0
+        },
+        auto_preamp,
     };
     if let Ok(json) = serde_json::to_string_pretty(&st) {
         let _ = fs::write(path, json);
@@ -67,10 +92,21 @@ pub fn find_apo_config_dir() -> Option<PathBuf> {
 }
 
 pub fn format_apo_config(bands: &[FilterBand], enabled: bool) -> String {
+    format_apo_config_with_preamp(bands, enabled, None)
+}
+
+pub fn format_apo_config_with_preamp(
+    bands: &[FilterBand],
+    enabled: bool,
+    preamp_db: Option<f64>,
+) -> String {
     if !enabled {
         return "# AutoQ — Bypass activo\nPreamp: 0.0 dB\n".to_string();
     }
-    let preamp = compute_safe_preamp_db(bands);
+    let preamp = preamp_db
+        .filter(|v| v.is_finite())
+        .map(|v| (v.clamp(-18.0, 6.0) * 100.0).round() / 100.0)
+        .unwrap_or_else(|| compute_safe_preamp_db(bands));
     let mut lines = Vec::with_capacity(bands.len() + 2);
     lines.push("# Generado automáticamente por AutoQ (Rust Core)".to_string());
     lines.push(format!("Preamp: {preamp:.2} dB"));
@@ -90,7 +126,17 @@ pub fn format_apo_config(bands: &[FilterBand], enabled: bool) -> String {
 }
 
 pub fn apply_apo_eq(bands: &[FilterBand], enabled: bool) -> Result<PathBuf, String> {
-    save_win_virtual_state(enabled, bands);
+    apply_apo_eq_with_preamp(bands, enabled, None, true)
+}
+
+pub fn apply_apo_eq_with_preamp(
+    bands: &[FilterBand],
+    enabled: bool,
+    preamp_db: Option<f64>,
+    auto_preamp: bool,
+) -> Result<PathBuf, String> {
+    let stored_preamp = preamp_db.unwrap_or_else(|| compute_safe_preamp_db(bands));
+    save_win_virtual_state_full(enabled, bands, stored_preamp, auto_preamp);
     let cfg_dir = find_apo_config_dir().ok_or_else(|| {
         "No se encontró Equalizer APO en 'C:\\Program Files\\EqualizerAPO\\config'. Instala Equalizer APO para usar EQ global de 10 bandas en Windows.".to_string()
     })?;
@@ -98,7 +144,11 @@ pub fn apply_apo_eq(bands: &[FilterBand], enabled: bool) -> Result<PathBuf, Stri
     let target_file = cfg_dir.join(AUTOQ_APO_FILENAME);
     let main_cfg = cfg_dir.join("config.txt");
 
-    fs::write(&target_file, format_apo_config(bands, enabled)).map_err(|e| {
+    fs::write(
+        &target_file,
+        format_apo_config_with_preamp(bands, enabled, preamp_db),
+    )
+    .map_err(|e| {
         if e.kind() == std::io::ErrorKind::PermissionDenied {
             format!(
                 "Sin permisos para escribir en {}. Ejecuta AutoQ como Administrador o otorga permisos de escritura a la carpeta config.",

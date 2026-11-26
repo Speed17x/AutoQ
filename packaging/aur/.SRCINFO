@@ -1,6 +1,6 @@
 pkgbase = autoq
 	pkgdesc = Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI & autoq-daemon)
-	pkgver = 2.1.2
+	pkgver = 2.2.0
 	pkgrel = 1
 	url = https://github.com/Speed17x/AutoQ
 	arch = x86_64
@@ -18,7 +18,7 @@ pkgbase = autoq
 	provides = autoq-cli
 	conflicts = autoq-bin
 	options = !lto
-	source = autoq-2.1.2.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v2.1.2.tar.gz
+	source = autoq-2.2.0.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v2.2.0.tar.gz
 	sha256sums = SKIP
 
 pkgname = autoq

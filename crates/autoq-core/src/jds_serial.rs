@@ -223,7 +223,7 @@ pub fn jds_parse_describe_response(json_str: &str) -> Result<(f64, Vec<FilterBan
 #[cfg(target_os = "linux")]
 mod serial_imp {
     use super::*;
-    use std::ffi::CString;
+    use crate::posix_fd::PosixFd;
     use std::fs;
     use std::path::Path;
 
@@ -297,80 +297,47 @@ mod serial_imp {
     }
 
     pub fn exchange_json(port_path: &str, tx_payload: &[u8]) -> Result<String, String> {
-        let cpath = CString::new(port_path).map_err(|e| e.to_string())?;
-        let fd = unsafe {
-            libc::open(
-                cpath.as_ptr(),
-                libc::O_RDWR | libc::O_NOCTTY | libc::O_NONBLOCK,
-            )
-        };
-        if fd < 0 {
-            let err = std::io::Error::last_os_error();
-            if err.kind() == std::io::ErrorKind::PermissionDenied {
-                return Err(format!(
-                    "Sin permisos para abrir {port_path} (JDS Labs Element IV). Instala las reglas udev desde AVANZADO."
-                ));
+        let fd = PosixFd::open(port_path, libc::O_RDWR | libc::O_NOCTTY | libc::O_NONBLOCK).map_err(
+            |err| {
+                if err.kind() == std::io::ErrorKind::PermissionDenied {
+                    format!(
+                        "Sin permisos para abrir {port_path} (JDS Labs Element IV). Instala las reglas udev desde AVANZADO."
+                    )
+                } else {
+                    format!("Error abriendo puerto serial {port_path}: {err}")
+                }
+            },
+        )?;
+
+        fd.configure_raw_serial_115200();
+
+        // Write full payload
+        let mut written = 0;
+        while written < tx_payload.len() {
+            match fd.write(&tx_payload[written..]) {
+                Ok(n) => written += n,
+                Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(err) => return Err(format!("Error escribiendo serial JDS Labs: {err}")),
             }
-            return Err(format!("Error abriendo puerto serial {port_path}: {err}"));
         }
 
-        let res = (|| -> Result<String, String> {
-            unsafe {
-                let mut tio: libc::termios = std::mem::zeroed();
-                if libc::tcgetattr(fd, &mut tio) == 0 {
-                    libc::cfmakeraw(&mut tio);
-                    libc::cfsetispeed(&mut tio, libc::B115200);
-                    libc::cfsetospeed(&mut tio, libc::B115200);
-                    tio.c_cflag |= libc::CLOCAL | libc::CREAD;
-                    libc::tcsetattr(fd, libc::TCSANOW, &tio);
-                }
-                libc::tcflush(fd, libc::TCIOFLUSH);
+        // Read until `\0` terminator or 2000 ms timeout
+        let deadline = Instant::now() + Duration::from_millis(2000);
+        let mut rx = Vec::with_capacity(4096);
+        let mut chunk = [0u8; 512];
+        while Instant::now() < deadline {
+            let rem = deadline
+                .saturating_duration_since(Instant::now())
+                .as_millis()
+                .clamp(1, 200) as i32;
+            if !fd.wait_readable(rem) {
+                continue;
             }
-
-            // Write full payload
-            let mut written = 0;
-            while written < tx_payload.len() {
-                let n = unsafe {
-                    libc::write(
-                        fd,
-                        tx_payload[written..].as_ptr() as *const libc::c_void,
-                        tx_payload.len() - written,
-                    )
-                };
-                if n < 0 {
-                    let err = std::io::Error::last_os_error();
-                    if err.kind() == std::io::ErrorKind::WouldBlock {
-                        std::thread::sleep(Duration::from_millis(5));
-                        continue;
-                    }
-                    return Err(format!("Error escribiendo serial JDS Labs: {err}"));
-                }
-                written += n as usize;
-            }
-
-            // Read until `\0` terminator or 2000 ms timeout
-            let deadline = Instant::now() + Duration::from_millis(2000);
-            let mut rx = Vec::with_capacity(4096);
-            let mut chunk = [0u8; 512];
-            while Instant::now() < deadline {
-                let rem = deadline
-                    .saturating_duration_since(Instant::now())
-                    .as_millis()
-                    .clamp(1, 200) as i32;
-                let mut pfd = libc::pollfd {
-                    fd,
-                    events: libc::POLLIN,
-                    revents: 0,
-                };
-                let rc = unsafe { libc::poll(&mut pfd, 1, rem) };
-                if rc <= 0 || (pfd.revents & libc::POLLIN) == 0 {
-                    continue;
-                }
-                let n = unsafe {
-                    libc::read(fd, chunk.as_mut_ptr() as *mut libc::c_void, chunk.len())
-                };
+            if let Ok(n) = fd.read(&mut chunk) {
                 if n > 0 {
-                    let slice = &chunk[..n as usize];
+                    let slice = &chunk[..n];
                     if let Some(pos) = slice.iter().position(|&b| b == 0) {
                         rx.extend_from_slice(&slice[..pos]);
                         return String::from_utf8(rx)
@@ -379,66 +346,95 @@ mod serial_imp {
                     rx.extend_from_slice(slice);
                 }
             }
-            if !rx.is_empty() {
-                return String::from_utf8(rx)
-                    .map_err(|e| format!("UTF-8 inválido desde JDS Labs: {e}"));
-            }
-            Err("Timeout esperando respuesta JSON de JDS Labs Element IV.".to_string())
-        })();
-
-        unsafe {
-            libc::close(fd);
         }
-        res
+        if !rx.is_empty() {
+            return String::from_utf8(rx)
+                .map_err(|e| format!("UTF-8 inválido desde JDS Labs: {e}"));
+        }
+        Err("Timeout esperando respuesta JSON de JDS Labs Element IV.".to_string())
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+pub fn make_jds_device_info(port_path: String, hid_name: String) -> MoondropDeviceInfo {
+    MoondropDeviceInfo {
+        hidraw_path: port_path,
+        vid: JDS_VID,
+        pid: JDS_ELEMENT_IV_PID,
+        hid_name,
+        display_name: "JDS Labs Element IV".to_string(),
+        protocol: HidProtocol::JdsElement,
+        max_bands: 12,
+        max_gain_db: 12.0,
+        supports_shelves: true,
+        disconnects_on_commit: false,
+        autoeq_hint: String::new(),
+        report_id: 0,
+        user_slot: 0,
+        bypass_slot: 0,
+        fiio_save_v2: false,
+    }
+}
+
+#[cfg(target_os = "windows")]
 mod serial_imp {
     use super::*;
+    use std::collections::HashSet;
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
-    use std::process::Command;
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+    use winreg::RegKey;
 
     pub fn scan_jds_serial_devices() -> Vec<MoondropDeviceInfo> {
         let mut out = Vec::new();
-        let Ok(output) = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -match 'VID_152A&PID_88FA' -and $_.Name -match '\\((COM\\d+)\\)' } | ForEach-Object { $_.Name }",
-            ])
-            .output()
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+
+        // Collect currently active COM port names from HKLM\HARDWARE\DEVICEMAP\SERIALCOMM
+        let mut active_ports = HashSet::new();
+        if let Ok(serialcomm) = hklm.open_subkey(r"HARDWARE\DEVICEMAP\SERIALCOMM") {
+            for item in serialcomm.enum_values().flatten() {
+                if let Ok(com) = serialcomm.get_value::<String, _>(&item.0) {
+                    let norm = com.trim().to_ascii_uppercase();
+                    if !norm.is_empty() {
+                        active_ports.insert(norm);
+                    }
+                }
+            }
+        }
+        if active_ports.is_empty() {
+            return out;
+        }
+
+        // Match only currently active USB-CDC instances for VID_152A&PID_88FA (no subprocesses!)
+        let Ok(usb_key) = hklm.open_subkey(r"SYSTEM\CurrentControlSet\Enum\USB\VID_152A&PID_88FA")
         else {
             return out;
         };
-        if !output.status.success() {
-            return out;
-        }
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            if let Some(start) = line.rfind("(COM") {
-                if let Some(end) = line[start + 1..].find(')') {
-                    let com = &line[start + 1..start + 1 + end];
-                    out.push(MoondropDeviceInfo {
-                        hidraw_path: format!(r"\\.\{com}"),
-                        vid: JDS_VID,
-                        pid: JDS_ELEMENT_IV_PID,
-                        hid_name: line.trim().to_string(),
-                        display_name: "JDS Labs Element IV".to_string(),
-                        protocol: HidProtocol::JdsElement,
-                        max_bands: 12,
-                        max_gain_db: 12.0,
-                        supports_shelves: true,
-                        disconnects_on_commit: false,
-                        autoeq_hint: String::new(),
-                        report_id: 0,
-                        user_slot: 0,
-                        bypass_slot: 0,
-                        fiio_save_v2: false,
-                    });
-                }
+        let mut seen_ports = HashSet::new();
+        for inst_name in usb_key.enum_keys().flatten() {
+            let Ok(inst_key) = usb_key.open_subkey(&inst_name) else {
+                continue;
+            };
+            let Ok(dev_params) = inst_key.open_subkey("Device Parameters") else {
+                continue;
+            };
+            let Ok(port_name) = dev_params.get_value::<String, _>("PortName") else {
+                continue;
+            };
+            let port_trim = port_name.trim().to_string();
+            let port_upper = port_trim.to_ascii_uppercase();
+            if !port_upper.starts_with("COM")
+                || !active_ports.contains(&port_upper)
+                || !seen_ports.insert(port_upper)
+            {
+                continue;
             }
+            let friendly = inst_key
+                .get_value::<String, _>("FriendlyName")
+                .unwrap_or_else(|_| format!("JDS Labs Element IV ({port_trim})"));
+            out.push(make_jds_device_info(
+                format!(r"\\.\{port_trim}"),
+                friendly.trim().to_string(),
+            ));
         }
         out
     }
@@ -474,6 +470,19 @@ mod serial_imp {
                 .map_err(|e| format!("UTF-8 inválido desde JDS Labs: {e}"));
         }
         Err("Timeout esperando respuesta JSON de JDS Labs Element IV.".to_string())
+    }
+}
+
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+mod serial_imp {
+    use super::*;
+
+    pub fn scan_jds_serial_devices() -> Vec<MoondropDeviceInfo> {
+        Vec::new()
+    }
+
+    pub fn exchange_json(_port_path: &str, _tx_payload: &[u8]) -> Result<String, String> {
+        Err("USB-CDC serial JDS Labs no soportado en esta plataforma.".to_string())
     }
 }
 
@@ -570,5 +579,12 @@ mod tests {
         assert!((parsed[2].gain - (-2.4)).abs() < 1e-6);
         assert_eq!(parsed[10].filter_type, FilterType::HighShelf);
         assert!((parsed[10].gain - 1.6).abs() < 1e-6);
+    }
+
+    #[test]
+    fn jds_rejects_malformed_or_incomplete_describe_json() {
+        assert!(jds_parse_describe_response("").is_err());
+        assert!(jds_parse_describe_response("{not json").is_err());
+        assert!(jds_parse_describe_response(r#"{"Product":"JDS"}"#).is_err());
     }
 }

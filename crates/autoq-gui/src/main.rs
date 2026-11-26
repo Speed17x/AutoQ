@@ -1,6 +1,6 @@
 //! AutoQ — 100% Native Rust Nothing OS Desktop App & Compact Floating Widget.
 //!
-//! Calls `autoq-core` directly in-process (zero Python, zero PySide6, zero subprocesses).
+//! Calls `autoq-core` directly in-process (zero subprocesses).
 //! Supports:
 //!   --full                     Full 3-tab Nothing OS app (default)
 //!   --widget                   Compact floating Nothing OS widget
@@ -16,12 +16,14 @@ mod ipc;
 mod theme;
 
 use autoq_core::autoeq::{
-    compute_match_headphone_peq, compute_target_curve_peq, downsample_curve, export_parametric_eq,
+    compute_match_headphone_peq, compute_target_curve_peq, downsample_curve, export_camilladsp_yaml,
+    export_easyeffects_json, export_parametric_eq_with_preamp, export_wavelet_graphiceq,
     find_best_entry_any_brand, load_catalog, normalize_search_text, parse_parametric_eq,
     reconstruct_fr_curve, AutoEqEntry, CURATED_TARGETS, SQUIG_SOURCES,
 };
 use autoq_core::biquad::{
-    fit_band_count, flat_bands, FilterBand, FilterType, MAX_FREQ_HZ, MAX_Q, MIN_FREQ_HZ, MIN_Q,
+    compute_safe_preamp_db, fit_band_count, flat_bands, headroom_margin_db, peak_boost_db,
+    FilterBand, FilterType, MAX_FREQ_HZ, MAX_Q, MIN_FREQ_HZ, MIN_Q,
 };
 use autoq_core::config::{
     load_daemon_config, load_presets, load_ui_settings, remove_device_rule, save_daemon_config,
@@ -212,6 +214,13 @@ enum AutoQMode {
     MatchHeadphone,
 }
 
+#[derive(Clone)]
+struct EqSlot {
+    bands: Vec<FilterBand>,
+    preamp_db: f64,
+    auto_preamp: bool,
+}
+
 enum BgMsg {
     StatusLoaded {
         devices: Vec<RuntimeDevice>,
@@ -305,6 +314,13 @@ struct AutoQApp {
     selected_preset: String,
     new_preset_name: String,
     apo_text: String,
+    export_format_idx: usize,
+
+    preamp_db: f64,
+    auto_preamp: bool,
+    active_ab_slot: char,
+    slot_a: Option<EqSlot>,
+    slot_b: Option<EqSlot>,
 
     daemon_cfg: DaemonConfig,
     daemon_active: bool,
@@ -369,6 +385,12 @@ impl AutoQApp {
             selected_preset,
             new_preset_name: String::new(),
             apo_text: String::new(),
+            export_format_idx: 0,
+            preamp_db: 0.0,
+            auto_preamp: true,
+            active_ab_slot: 'A',
+            slot_a: None,
+            slot_b: None,
             daemon_cfg: load_daemon_config(),
             daemon_active: ipc::is_daemon_service_active(),
             active_theme,
@@ -378,6 +400,73 @@ impl AutoQApp {
         };
         app.spawn_refresh(cc.egui_ctx.clone(), String::new(), false);
         app
+    }
+
+    fn effective_preamp_db(&self) -> f64 {
+        if self.auto_preamp {
+            compute_safe_preamp_db(&self.bands)
+        } else {
+            self.preamp_db.clamp(-18.0, 6.0)
+        }
+    }
+
+    fn capture_slot(&self) -> EqSlot {
+        EqSlot {
+            bands: self.bands.clone(),
+            preamp_db: self.preamp_db,
+            auto_preamp: self.auto_preamp,
+        }
+    }
+
+    fn switch_ab_slot(&mut self, ctx: &egui::Context, target: char) {
+        if self.active_ab_slot == target {
+            return;
+        }
+        let cur = self.capture_slot();
+        if self.active_ab_slot == 'A' {
+            self.slot_a = Some(cur.clone());
+        } else {
+            self.slot_b = Some(cur.clone());
+        }
+        let target_slot = if target == 'A' {
+            &mut self.slot_a
+        } else {
+            &mut self.slot_b
+        };
+        if let Some(loaded) = target_slot.clone() {
+            let n = self
+                .active_device()
+                .map(RuntimeDevice::max_bands)
+                .unwrap_or(DEFAULT_VIRTUAL_BANDS);
+            self.bands = fit_band_count(&loaded.bands, n);
+            self.preamp_db = loaded.preamp_db;
+            self.auto_preamp = loaded.auto_preamp;
+            self.selected_band = self.selected_band.min(self.bands.len().saturating_sub(1));
+            self.active_ab_slot = target;
+            self.dirty_bands = true;
+            if self.active_device().is_some() {
+                self.spawn_apply(ctx.clone(), false);
+            }
+            self.set_status(format!("COMPARACIÓN A/B: SLOT {target} ACTIVO"), false);
+        } else {
+            *target_slot = Some(cur);
+            self.active_ab_slot = target;
+            self.set_status(
+                format!("SLOT {target} CREADO (COPIA) · EDITA Y ALTERNA A/B"),
+                false,
+            );
+        }
+    }
+
+    fn copy_to_other_ab_slot(&mut self) {
+        let cur = self.capture_slot();
+        if self.active_ab_slot == 'A' {
+            self.slot_b = Some(cur);
+            self.set_status("CURVA Y PREAMP COPIADOS DE A → B", false);
+        } else {
+            self.slot_a = Some(cur);
+            self.set_status("CURVA Y PREAMP COPIADOS DE B → A", false);
+        }
     }
 
     fn active_device(&self) -> Option<&RuntimeDevice> {
@@ -415,7 +504,11 @@ impl AutoQApp {
         thread::spawn(move || {
             let devices = discover_devices();
             let active_idx = pick_device_idx(&devices, &preferred_id);
-            let pw_active = platform_linux::is_pipewire_eq_running();
+            let pw_active = if cfg!(target_os = "linux") {
+                platform_linux::is_pipewire_eq_running()
+            } else {
+                false
+            };
             let mut dsp_enabled = true;
             let mut read_error = None;
             let mut bands = flat_bands(
@@ -492,6 +585,12 @@ impl AutoQApp {
         };
         let fitted = fit_band_count(&self.bands, dev.max_bands());
         let enable_eq = self.dsp_enabled;
+        let auto_preamp = self.auto_preamp;
+        let preamp_opt = if auto_preamp {
+            None
+        } else {
+            Some(self.preamp_db.clamp(-18.0, 6.0))
+        };
         if commit {
             self.busy = true;
             self.set_status("GUARDANDO EN MEMORIA FLASH DEL DSP...", false);
@@ -526,7 +625,7 @@ impl AutoQApp {
                     }
                 }
                 RuntimeDevice::PipeWire(pw) => {
-                    match platform_linux::apply_pipewire_eq(&pw, &fitted, enable_eq) {
+                    match platform_linux::apply_pipewire_eq_with_preamp(&pw, &fitted, enable_eq, preamp_opt) {
                         Ok(active) => BgMsg::Applied {
                             ok: true,
                             committed: true,
@@ -550,7 +649,7 @@ impl AutoQApp {
                     }
                 }
                 RuntimeDevice::WinApo { .. } => {
-                    match platform_windows::apply_apo_eq(&fitted, enable_eq) {
+                    match platform_windows::apply_apo_eq_with_preamp(&fitted, enable_eq, preamp_opt, auto_preamp) {
                         Ok(_) => BgMsg::Applied {
                             ok: true,
                             committed: true,
@@ -1185,18 +1284,20 @@ impl AutoQApp {
     }
 
     fn render_eq_tab(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        // Quick action strip: [FR] [0 dB] [↻ Leer] [LIVE]      [GUARDAR FLASH / APLICAR EQ]
+        // Quick action strip: [FR] [0 dB] [↻] [LIVE] [A] [B] [A→B]   [GUARDAR FLASH / APLICAR EQ]
         ui.horizontal(|ui| {
             let fr_lbl = if self.overlay_fr { "FR" } else { "ΔEQ" };
-            if outline_pill(ui, fr_lbl, self.overlay_fr, Vec2::new(42.0, 28.0)).clicked() {
+            if outline_pill(ui, fr_lbl, self.overlay_fr, Vec2::new(40.0, 28.0)).clicked() {
                 self.overlay_fr = !self.overlay_fr;
             }
-            if outline_pill(ui, "0 dB", false, Vec2::new(50.0, 28.0)).clicked() {
+            if outline_pill(ui, "0 dB", false, Vec2::new(44.0, 28.0)).clicked() {
                 let n = self
                     .active_device()
                     .map(RuntimeDevice::max_bands)
                     .unwrap_or(DEFAULT_VIRTUAL_BANDS);
                 self.bands = flat_bands(n);
+                self.preamp_db = 0.0;
+                self.auto_preamp = true;
                 self.target_delta.clear();
                 self.target_fr.clear();
                 self.target_label.clear();
@@ -1204,12 +1305,38 @@ impl AutoQApp {
                 self.dsp_enabled = true;
                 self.spawn_apply(ctx.clone(), false);
             }
-            if outline_pill(ui, "↻ Leer", false, Vec2::new(66.0, 28.0)).clicked() {
+            if outline_pill(ui, "↻", false, Vec2::new(28.0, 28.0))
+                .on_hover_text("Re-escanear dispositivos y leer EQ")
+                .clicked()
+            {
                 let id = self.active_device().map(RuntimeDevice::id).unwrap_or_default();
                 self.spawn_refresh(ctx.clone(), id, false);
             }
-            if outline_pill(ui, "LIVE", self.live_preview, Vec2::new(50.0, 28.0)).clicked() {
+            if outline_pill(ui, "LIVE", self.live_preview, Vec2::new(42.0, 28.0)).clicked() {
                 self.live_preview = !self.live_preview;
+            }
+            if outline_pill(ui, "A", self.active_ab_slot == 'A', Vec2::new(24.0, 28.0))
+                .on_hover_text("Comparación instantánea: Slot A")
+                .clicked()
+            {
+                self.switch_ab_slot(ctx, 'A');
+            }
+            if outline_pill(ui, "B", self.active_ab_slot == 'B', Vec2::new(24.0, 28.0))
+                .on_hover_text("Comparación instantánea: Slot B")
+                .clicked()
+            {
+                self.switch_ab_slot(ctx, 'B');
+            }
+            let copy_lbl = if self.active_ab_slot == 'A' {
+                "A→B"
+            } else {
+                "B→A"
+            };
+            if outline_pill(ui, copy_lbl, false, Vec2::new(36.0, 28.0))
+                .on_hover_text("Copiar curva activa al otro slot A/B")
+                .clicked()
+            {
+                self.copy_to_other_ab_slot();
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1221,7 +1348,7 @@ impl AutoQApp {
                 } else {
                     "APLICAR EQ"
                 };
-                if red_pill(ui, cta, Vec2::new(118.0, 30.0)).clicked() {
+                if red_pill(ui, cta, Vec2::new(114.0, 30.0)).clicked() {
                     self.spawn_apply(ctx.clone(), is_usb);
                 }
             });
@@ -1252,6 +1379,88 @@ impl AutoQApp {
             &mut self.dragging_node,
         );
         self.handle_graph_event(ev);
+
+        ui.add_space(6.0);
+
+        // Preamp & Anti-Clipping Headroom Meter Card
+        let pal = palette();
+        let eff_preamp = self.effective_preamp_db();
+        if self.auto_preamp {
+            self.preamp_db = eff_preamp;
+        }
+        let peak_db = peak_boost_db(&self.bands);
+        let margin_db = headroom_margin_db(&self.bands, eff_preamp);
+        let safe_col = if pal.is_dark {
+            egui::Color32::from_rgb(0x1C, 0xDC, 0x9A)
+        } else {
+            egui::Color32::from_rgb(0x0D, 0x94, 0x88)
+        };
+        let warn_col = if pal.is_dark {
+            egui::Color32::from_rgb(0xF5, 0x9E, 0x0B)
+        } else {
+            egui::Color32::from_rgb(0xD9, 0x77, 0x06)
+        };
+
+        sub_card_frame().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                section_label(ui, &format!("PREAMP & HEADROOM · PICO +{peak_db:.1} dB"));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if outline_pill(ui, "AUTO", self.auto_preamp, Vec2::new(48.0, 22.0))
+                        .on_hover_text("Calcular preamp anti-clipping automático")
+                        .clicked()
+                    {
+                        self.auto_preamp = !self.auto_preamp;
+                        if self.auto_preamp {
+                            self.preamp_db = compute_safe_preamp_db(&self.bands);
+                        }
+                        self.schedule_live_apply();
+                    }
+                    let (badge_txt, badge_col) = if margin_db >= 0.0 {
+                        (format!("MARGEN +{margin_db:.1} dB OK"), safe_col)
+                    } else {
+                        (format!("⚠ CLIPPING {:.1} dB", -margin_db), warn_col)
+                    };
+                    ui.label(
+                        egui::RichText::new(badge_txt)
+                            .size(9.5)
+                            .strong()
+                            .monospace()
+                            .color(badge_col),
+                    );
+                });
+            });
+            ui.add_space(4.0);
+            let pre_lbl = format!("{eff_preamp:+.1} dB");
+            if nothing_slider(
+                ui,
+                "PREAMP",
+                &mut self.preamp_db,
+                -18.0,
+                6.0,
+                0.1,
+                false,
+                &pre_lbl,
+            ) {
+                self.preamp_db = (self.preamp_db * 10.0).round() / 10.0;
+                self.auto_preamp = false;
+                self.schedule_live_apply();
+            }
+            ui.add_space(4.0);
+            let (bar_rect, _) = ui.allocate_exact_size(
+                Vec2::new(ui.available_width(), 5.0),
+                egui::Sense::hover(),
+            );
+            let painter = ui.painter();
+            painter.rect_filled(bar_rect, CornerRadius::same(3), pal.inset_bg);
+            let used_ratio = ((peak_db + eff_preamp.max(-18.0)).clamp(0.0, 12.0) / 12.0) as f32;
+            let bar_col = if margin_db >= 0.0 { safe_col } else { warn_col };
+            let fill_w = (bar_rect.width() * used_ratio.max(if peak_db > 0.05 { 0.08 } else { 0.0 })).max(0.0);
+            if fill_w > 0.5 {
+                let mut fill_rect = bar_rect;
+                fill_rect.set_right(bar_rect.left() + fill_w);
+                painter.rect_filled(fill_rect, CornerRadius::same(3), bar_col);
+            }
+        });
 
         ui.add_space(6.0);
 
@@ -1710,9 +1919,21 @@ impl AutoQApp {
 
         ui.add_space(6.0);
 
-        // ── Equalizer APO Import / Export Card ──
+        // ── Equalizer APO / EasyEffects / CamillaDSP / Wavelet Card ──
         sub_card_frame().show(ui, |ui| {
-            section_label(ui, "EQUALIZER APO (PARAMETRICEQ.TXT)");
+            section_label(ui, "IMPORTAR / EXPORTAR (MULTI-FORMATO)");
+            ui.add_space(2.0);
+            let fmt_labels = ["APO", "EasyEffects", "CamillaDSP", "Wavelet"];
+            let quarter_w = ((ui.available_width() - 21.0) / 4.0).max(75.0);
+            ui.horizontal(|ui| {
+                for (idx, lbl) in fmt_labels.iter().enumerate() {
+                    if outline_pill(ui, lbl, self.export_format_idx == idx, Vec2::new(quarter_w, 24.0))
+                        .clicked()
+                    {
+                        self.export_format_idx = idx;
+                    }
+                }
+            });
             inset_list_frame().show(ui, |ui| {
                 ui.add(
                     egui::TextEdit::multiline(&mut self.apo_text)
@@ -1745,10 +1966,20 @@ impl AutoQApp {
                     }
                 }
                 if outline_pill(ui, "EXPORTAR Y COPIAR", false, Vec2::new(half_w, 28.0)).clicked() {
-                    let exported = export_parametric_eq(&self.bands);
+                    let eff_preamp = self.effective_preamp_db();
+                    let exported = match self.export_format_idx {
+                        1 => export_easyeffects_json(&self.bands, eff_preamp),
+                        2 => export_camilladsp_yaml(&self.bands, eff_preamp),
+                        3 => export_wavelet_graphiceq(&self.bands),
+                        _ => export_parametric_eq_with_preamp(&self.bands, eff_preamp),
+                    };
+                    let fmt_name = fmt_labels.get(self.export_format_idx).copied().unwrap_or("APO");
                     self.apo_text = exported.clone();
                     ctx.copy_text(exported);
-                    self.set_status("PARAMETRICEQ.TXT COPIADO AL PORTAPAPELES", false);
+                    self.set_status(
+                        format!("{fmt_name} COPIADO AL PORTAPAPELES"),
+                        false,
+                    );
                 }
             });
         });
@@ -1994,7 +2225,7 @@ impl AutoQApp {
                 })
                 .unwrap_or_else(|| "Dispositivo: Ninguno conectado".to_string());
             let diag = format!(
-                "{}\nPipeWire Filter-Chain: {}\nMotor: AutoQ v{} (100% Rust Nativo · Sin Python)\nProtocolos DSP: KTMicro · MD8 · WalkPlay · FiiO · Qudelix · Topping · Fosi · JDS",
+                "{}\nPipeWire Filter-Chain: {}\nMotor: AutoQ v{} (Rust Nativo)\nProtocolos DSP: KTMicro · MD8 · WalkPlay · FiiO · Qudelix · Topping · Fosi · JDS",
                 dev_line,
                 if self.pipewire_active { "ACTIVO" } else { "INACTIVO" },
                 env!("CARGO_PKG_VERSION"),

@@ -211,29 +211,27 @@ pub fn install_kde_plasmoid() -> Result<String, String> {
     }
 }
 
+const UDEV_RULES: &str = include_str!("../../../packaging/udev/99-autoq-usb-dsp.rules");
+
 pub fn install_udev_rules() -> Result<String, String> {
     if cfg!(target_os = "windows") {
         return Err("Las reglas udev solo aplican en Linux.".to_string());
     }
-    if Path::new("/etc/udev/rules.d/99-autoq-usb-dsp.rules").exists()
-        || Path::new("/usr/lib/udev/rules.d/99-autoq-usb-dsp.rules").exists()
-    {
-        return Ok("Las reglas udev USB DSP ya están instaladas.".to_string());
+    let etc_path = Path::new("/etc/udev/rules.d/99-autoq-usb-dsp.rules");
+    let lib_path = Path::new("/usr/lib/udev/rules.d/99-autoq-usb-dsp.rules");
+    let already_hardened = [etc_path, lib_path].iter().any(|p| {
+        p.exists()
+            && fs::read_to_string(p)
+                .map(|txt| !txt.contains("MODE=\"0666\""))
+                .unwrap_or(false)
+    });
+    if already_hardened {
+        return Ok("Las reglas udev USB DSP (MODE=0660) ya están instaladas.".to_string());
     }
-    let rules = concat!(
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"31b2\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"2fc6\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"2f20\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"2972\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"0a12\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"3302\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"152a\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"tty\", ATTRS{idVendor}==\"152a\", ATTRS{idProduct}==\"88fa\", MODE=\"0666\", TAG+=\"uaccess\"\n"
-    );
     let tmp = env::temp_dir().join("99-autoq-usb-dsp.rules");
-    fs::write(&tmp, rules).map_err(|e| e.to_string())?;
+    fs::write(&tmp, UDEV_RULES).map_err(|e| e.to_string())?;
     let cmd = format!(
-        "cp -f '{}' /etc/udev/rules.d/99-autoq-usb-dsp.rules && udevadm control --reload-rules && udevadm trigger",
+        "install -Dm644 '{}' /etc/udev/rules.d/99-autoq-usb-dsp.rules && udevadm control --reload-rules && udevadm trigger",
         tmp.display()
     );
     let status = Command::new("pkexec")
@@ -242,7 +240,7 @@ pub fn install_udev_rules() -> Result<String, String> {
         .map_err(|e| format!("pkexec no disponible: {e}"))?;
     let _ = fs::remove_file(&tmp);
     if status.success() {
-        Ok("Permisos USB DSP activados (reglas udev recargadas).".to_string())
+        Ok("Permisos USB DSP activados (reglas udev 0660 recargadas).".to_string())
     } else {
         Err("Instalación de reglas udev cancelada o fallida.".to_string())
     }

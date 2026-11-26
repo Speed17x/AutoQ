@@ -1,0 +1,32 @@
+# Plantilla de manifiesto WinGet (microsoft/winget-pkgs)
+# Sustituir VERSION y SHA256 con los valores publicados en SHA256SUMS.txt del release en GitHub.
+PackageIdentifier: Speed17x.AutoQ
+PackageVersion: 2.2.0
+PackageLocale: es-MX
+Publisher: Speed17x
+PublisherUrl: https://github.com/Speed17x/AutoQ
+PublisherSupportUrl: https://github.com/Speed17x/AutoQ/issues
+Author: Speed17x
+PackageName: AutoQ
+PackageUrl: https://github.com/Speed17x/AutoQ
+License: GPL-2.0-or-later
+LicenseUrl: https://github.com/Speed17x/AutoQ/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Hector / Speed17x
+ShortDescription: Ecualizador paramétrico universal y AutoEQ 100% nativo en Rust con soporte USB-C DSP y Equalizer APO.
+Moniker: autoq
+Tags:
+  - audio
+  - equalizer
+  - parametric-eq
+  - autoeq
+  - usb-dac
+  - rust
+Installers:
+  - Architecture: x64
+    InstallerType: inno
+    Scope: user
+    InstallerUrl: https://github.com/Speed17x/AutoQ/releases/download/v2.2.0/AutoQ-Setup-x64.exe
+    InstallerSha256: REPLACE_WITH_SHA256_FROM_SHA256SUMS_TXT
+    UpgradeBehavior: install
+ManifestType: singleton
+ManifestVersion: 1.9.0

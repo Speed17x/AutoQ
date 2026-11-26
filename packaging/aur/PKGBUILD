@@ -1,6 +1,6 @@
 # Maintainer: Hector <https://github.com/Speed17x/AutoQ>
 pkgname=autoq
-pkgver=2.1.2
+pkgver=2.2.0
 pkgrel=1
 pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI & autoq-daemon)"
 arch=('x86_64' 'aarch64')

@@ -258,7 +258,11 @@ class GlobalEqService : Service() {
         }
         val gains = BiquadMath.combinedResponseDb(bands, eqCenterFreqs)
         val maxBoost = gains.maxOrNull()?.let { max(0.0, it) } ?: 0.0
-        val preampDb = (-maxBoost).coerceIn(-18.0, 0.0).toFloat()
+        val preampDb = if (snap.autoPreamp) {
+            (-maxBoost - 0.2).coerceIn(-18.0, 0.0).toFloat()
+        } else {
+            snap.preampDb.coerceIn(-18.0, 6.0).toFloat()
+        }
 
         val eq = DynamicsProcessing.Eq(true, enabled, EQ_BAND_COUNT)
         for (i in 0 until EQ_BAND_COUNT) {

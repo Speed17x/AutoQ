@@ -269,11 +269,21 @@ object BiquadMath {
         return total
     }
 
-    fun computeSafePreampDb(bands: List<FilterBand>): Double {
-        val freqs = logSpace(20.0, 20000.0, 96)
+    fun peakBoostDb(bands: List<FilterBand>): Double {
+        if (bands.isEmpty()) return 0.0
+        val freqs = logSpace(MIN_FREQ_HZ, MAX_FREQ_HZ, 256)
         val resp = combinedResponseDb(bands, freqs)
-        val maxBoost = resp.maxOrNull()?.let { max(0.0, it) } ?: 0.0
-        return (-maxBoost).coerceIn(-12.0, 0.0)
+        val peak = resp.maxOrNull() ?: 0.0
+        return if (peak > 0.0) round(peak * 100.0) / 100.0 else 0.0
+    }
+
+    fun computeSafePreampDb(bands: List<FilterBand>): Double {
+        val peak = peakBoostDb(bands)
+        return if (peak > 0.0) round((-peak - 0.2).coerceIn(-18.0, 0.0) * 100.0) / 100.0 else 0.0
+    }
+
+    fun headroomMarginDb(bands: List<FilterBand>, preampDb: Double): Double {
+        return round(-(peakBoostDb(bands) + preampDb) * 100.0) / 100.0
     }
 
     fun makeWeights(freqs: DoubleArray, maxFreqFit: Double): DoubleArray {

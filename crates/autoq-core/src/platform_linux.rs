@@ -1,7 +1,7 @@
 //! Linux PipeWire 10-band native `filter-chain` PEQ, sink discovery, and
 //! optional Classic Bluetooth SPP (RFCOMM) client.
 
-use crate::biquad::{FilterBand, FilterType};
+use crate::biquad::{compute_safe_preamp_db, FilterBand, FilterType};
 use crate::config::{bt_profiles_file, config_dir, load_saved_profile_bands, save_profile_bands, DEFAULT_VIRTUAL_BANDS};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -116,6 +116,9 @@ fn mac_from_sink_name(sink_name: &str) -> String {
 }
 
 fn run_cmd(prog: &str, args: &[&str]) -> Result<String, String> {
+    if !cfg!(target_os = "linux") {
+        return Err("Solo disponible en Linux.".to_string());
+    }
     let out = Command::new(prog)
         .args(args)
         .output()
@@ -289,13 +292,40 @@ pub fn load_pw_saved_bands(dev: &PipeWireAudioDevice) -> Vec<FilterBand> {
 }
 
 pub fn build_pipewire_conf(bands: &[FilterBand], target_sink: &str, label: &str) -> String {
+    build_pipewire_conf_with_preamp(bands, target_sink, label, compute_safe_preamp_db(bands))
+}
+
+pub fn build_pipewire_conf_with_preamp(
+    bands: &[FilterBand],
+    target_sink: &str,
+    label: &str,
+    preamp_db: f64,
+) -> String {
     let mut active: Vec<FilterBand> = bands.iter().map(FilterBand::clamped).collect();
     if active.is_empty() {
         active.push(FilterBand::new(FilterType::Peaking, 1000.0, 0.0, 1.0));
     }
 
-    let mut nodes_lines = Vec::with_capacity(active.len());
-    let mut links_lines = Vec::with_capacity(active.len());
+    let safe_preamp = if preamp_db.is_finite() {
+        preamp_db.clamp(-18.0, 6.0)
+    } else {
+        0.0
+    };
+    let use_preamp = safe_preamp.abs() >= 0.05;
+
+    let mut nodes_lines = Vec::with_capacity(active.len() + 1);
+    let mut links_lines = Vec::with_capacity(active.len() + 1);
+
+    if use_preamp {
+        let linear = 10.0_f64.powf(safe_preamp / 20.0);
+        nodes_lines.push(format!(
+            "                    {{ type = builtin name = eq_preamp label = mixer control = {{ \"Gain 1\" = {linear:.6} }} }}"
+        ));
+        links_lines.push(
+            "                    { output = \"eq_preamp:Out\" input = \"eq_band_1:In\" }"
+                .to_string(),
+        );
+    }
 
     for (idx, b) in active.iter().enumerate() {
         let i = idx + 1;
@@ -323,6 +353,14 @@ pub fn build_pipewire_conf(bands: &[FilterBand], target_sink: &str, label: &str)
             links_lines.join("\n")
         )
     };
+    let io_block = if use_preamp {
+        format!(
+            "\n                inputs  = [ \"eq_preamp:In 1\" ]\n                outputs = [ \"eq_band_{}:Out\" ]",
+            active.len()
+        )
+    } else {
+        String::new()
+    };
 
     let safe_desc = label.replace('"', "");
     let safe_target = target_sink.replace('"', "");
@@ -344,7 +382,7 @@ context.modules = [
                 nodes = [
 {nodes_block}
                 ]
-{links_block}
+{links_block}{io_block}
             }}
             audio.channels = 2
             audio.position = [ FL FR ]
@@ -392,6 +430,15 @@ pub fn apply_pipewire_eq(
     bands: &[FilterBand],
     enable_eq: bool,
 ) -> Result<bool, String> {
+    apply_pipewire_eq_with_preamp(dev, bands, enable_eq, None)
+}
+
+pub fn apply_pipewire_eq_with_preamp(
+    dev: &PipeWireAudioDevice,
+    bands: &[FilterBand],
+    enable_eq: bool,
+    preamp_db: Option<f64>,
+) -> Result<bool, String> {
     let key = if !dev.mac.is_empty() {
         &dev.mac
     } else if !dev.sink_name.is_empty() {
@@ -401,7 +448,8 @@ pub fn apply_pipewire_eq(
     };
     let _ = save_profile_bands(&bt_profiles_file(), key, bands);
 
-    if !enable_eq || bands.iter().all(|b| b.gain.abs() < 0.05) {
+    let effective_preamp = preamp_db.unwrap_or_else(|| compute_safe_preamp_db(bands));
+    if !enable_eq || (bands.iter().all(|b| b.gain.abs() < 0.05) && effective_preamp.abs() < 0.05) {
         stop_pipewire_eq(Some(&dev.sink_name));
         return Ok(false);
     }
@@ -411,7 +459,7 @@ pub fn apply_pipewire_eq(
     let conf_path = cdir.join("pw-moondrop-eq.conf");
     fs::write(
         &conf_path,
-        build_pipewire_conf(bands, &dev.sink_name, &dev.display_name),
+        build_pipewire_conf_with_preamp(bands, &dev.sink_name, &dev.display_name, effective_preamp),
     )
     .map_err(|e| e.to_string())?;
 
@@ -465,17 +513,8 @@ pub fn apply_pipewire_eq(
 #[cfg(target_os = "linux")]
 mod spp {
     use super::*;
+    use crate::posix_fd::PosixFd;
     use std::time::Instant;
-
-    const AF_BLUETOOTH: libc::c_int = 31;
-    const BTPROTO_RFCOMM: libc::c_int = 3;
-
-    #[repr(C)]
-    struct SockAddrRc {
-        rc_family: libc::sa_family_t,
-        rc_bdaddr: [u8; 6],
-        rc_channel: u8,
-    }
 
     fn parse_bdaddr_le(mac: &str) -> Result<[u8; 6], String> {
         let parts: Vec<&str> = mac.trim().split(':').collect();
@@ -527,69 +566,28 @@ mod spp {
         out
     }
 
-    struct RawFdGuard(libc::c_int);
-    impl Drop for RawFdGuard {
-        fn drop(&mut self) {
-            if self.0 >= 0 {
-                unsafe {
-                    libc::close(self.0);
-                }
-            }
-        }
-    }
-
     pub fn spp_request(mac: &str, payload: &[u8], timeout_ms: i32) -> Result<Vec<u8>, String> {
         if mac.trim().is_empty() {
             return Err("No hay dirección MAC Bluetooth para SPP.".to_string());
         }
         let bdaddr = parse_bdaddr_le(mac)?;
-        let mut conn_fd: Option<RawFdGuard> = None;
+        let mut conn_fd: Option<PosixFd> = None;
         let mut last_err = String::new();
 
         for ch in resolve_spp_channels(mac) {
-            let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BTPROTO_RFCOMM) };
-            if fd < 0 {
-                last_err = std::io::Error::last_os_error().to_string();
-                continue;
-            }
-            let guard = RawFdGuard(fd);
-            let tv = libc::timeval {
-                tv_sec: (timeout_ms / 1000) as libc::time_t,
-                tv_usec: ((timeout_ms % 1000) * 1000) as libc::suseconds_t,
+            let sock = match PosixFd::open_rfcomm_socket(timeout_ms) {
+                Ok(s) => s,
+                Err(e) => {
+                    last_err = e.to_string();
+                    continue;
+                }
             };
-            unsafe {
-                libc::setsockopt(
-                    guard.0,
-                    libc::SOL_SOCKET,
-                    libc::SO_SNDTIMEO,
-                    &tv as *const _ as *const libc::c_void,
-                    std::mem::size_of::<libc::timeval>() as libc::socklen_t,
-                );
-                libc::setsockopt(
-                    guard.0,
-                    libc::SOL_SOCKET,
-                    libc::SO_RCVTIMEO,
-                    &tv as *const _ as *const libc::c_void,
-                    std::mem::size_of::<libc::timeval>() as libc::socklen_t,
-                );
-            }
-            let addr = SockAddrRc {
-                rc_family: AF_BLUETOOTH as libc::sa_family_t,
-                rc_bdaddr: bdaddr,
-                rc_channel: ch,
-            };
-            let rc = unsafe {
-                libc::connect(
-                    guard.0,
-                    &addr as *const SockAddrRc as *const libc::sockaddr,
-                    std::mem::size_of::<SockAddrRc>() as libc::socklen_t,
-                )
-            };
-            if rc == 0 {
-                conn_fd = Some(guard);
-                break;
-            } else {
-                last_err = std::io::Error::last_os_error().to_string();
+            match sock.connect_rfcomm(bdaddr, ch) {
+                Ok(()) => {
+                    conn_fd = Some(sock);
+                    break;
+                }
+                Err(e) => last_err = e.to_string(),
             }
         }
 
@@ -597,20 +595,8 @@ mod spp {
             .ok_or_else(|| format!("No se pudo conectar por Bluetooth SPP ({last_err})."))?;
 
         let frame_out = spp_frame(payload);
-        let written = unsafe {
-            libc::send(
-                sock.0,
-                frame_out.as_ptr() as *const libc::c_void,
-                frame_out.len(),
-                0,
-            )
-        };
-        if written < 0 {
-            return Err(format!(
-                "Error enviando trama SPP: {}",
-                std::io::Error::last_os_error()
-            ));
-        }
+        sock.send(&frame_out)
+            .map_err(|e| format!("Error enviando trama SPP: {e}"))?;
 
         let want = payload.get(2).copied().unwrap_or(0) & 0xFE;
         let mut buf: Vec<u8> = Vec::with_capacity(256);
@@ -618,18 +604,13 @@ mod spp {
 
         while Instant::now() < deadline {
             let mut chunk = [0u8; 512];
-            let n = unsafe {
-                libc::recv(
-                    sock.0,
-                    chunk.as_mut_ptr() as *mut libc::c_void,
-                    chunk.len(),
-                    0,
-                )
+            let Ok(n) = sock.recv(&mut chunk) else {
+                break;
             };
-            if n <= 0 {
+            if n == 0 {
                 break;
             }
-            buf.extend_from_slice(&chunk[..n as usize]);
+            buf.extend_from_slice(&chunk[..n]);
 
             let mut i = 0usize;
             while i + 8 <= buf.len() {
@@ -747,4 +728,22 @@ pub fn bt_spp_write_eq(mac: &str, bands: &[FilterBand]) -> Result<(), String> {
     let mut write_payload = vec![0x00, 0x1D, 0x0A, 0x06];
     write_payload.extend_from_slice(&out);
     spp::spp_request(mac, &write_payload, 2000).map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_pipewire_conf_with_and_without_preamp_mixer() {
+        let bands = vec![FilterBand::new(FilterType::Peaking, 1000.0, 4.0, 1.0)];
+        let conf_pre = build_pipewire_conf_with_preamp(&bands, "alsa_output.test", "Test", -6.0);
+        assert!(conf_pre.contains("name = eq_preamp label = mixer"));
+        assert!(conf_pre.contains("\"Gain 1\" = 0.5011"));
+        assert!(conf_pre.contains("output = \"eq_preamp:Out\" input = \"eq_band_1:In\""));
+        assert!(conf_pre.contains("inputs  = [ \"eq_preamp:In 1\" ]"));
+
+        let conf_zero = build_pipewire_conf_with_preamp(&bands, "alsa_output.test", "Test", 0.0);
+        assert!(!conf_zero.contains("eq_preamp"));
+    }
 }

@@ -4,6 +4,32 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [2.2.0] — 2026-11-26
+
+### Añadido / Cambiado
+- **Experiencia limpia e instalador único en Windows (`AutoQ-Setup-x64.exe`)**:
+  - Eliminadas las ventanas emergentes de terminal al escanear JDS Labs Element IV (reemplazado `powershell.exe` por lectura directa del Registro vía `winreg` y protegida la ejecución de comandos Linux fuera de Linux).
+  - Embebido ícono nativo (`windows-beta/autoq.ico`) y metadatos PE (`winresource`), añadido script Inno Setup 6 (`windows-beta/AutoQ.iss`) y soporte opcional de firma `signtool.exe` en CI + plantilla WinGet ([`packaging/winget/Speed17x.AutoQ.yaml`](./packaging/winget/Speed17x.AutoQ.yaml)).
+- **Seguridad de suministro, CI/CD, `udev` y licencia raíz**:
+  - Añadido [`LICENSE`](./LICENSE) (`GPL-2.0-only`) en la raíz del repositorio y configurados descripción y *topics* en GitHub.
+  - Endurecidas las reglas USB `udev` de `MODE="0666"` a `MODE="0660", TAG+="uaccess"` en [`packaging/udev/99-autoq-usb-dsp.rules`](./packaging/udev/99-autoq-usb-dsp.rules) y unificadas con `include_str!` en `autoq-gui`.
+  - Endurecido [`install-linux.sh`](./install-linux.sh) para verificar obligatoriamente cada binario contra `SHA256SUMS.txt`, instalar `autoq-daemon` y soportar Linux **`ARM64` (`aarch64`)**.
+  - Reducidos los permisos globales de `.github/workflows/build-releases.yml` a `contents: read` (`contents: write` solo en `publish-release`) y añadido el job `build-linux-arm64` (`ubuntu-24.04-arm`).
+- **Higiene del *workspace* Cargo y encapsulación POSIX RAII**:
+  - Centralizadas las dependencias compartidas bajo `[workspace.package]` y `[workspace.dependencies]` en [`Cargo.toml`](./Cargo.toml).
+  - Aisladas todas las llamadas POSIX `libc` tras `PosixFd(OwnedFd)` en [`crates/autoq-core/src/posix_fd.rs`](./crates/autoq-core/src/posix_fd.rs), protegidos los *clamps* contra `NaN`/`±∞` y ampliados los tests para paquetes HID/JDS truncados o malformados.
+- **Widgets sincronizados con los temas modulares (Android + KDE Plasma 6)**:
+  - `NothingEqWidgetProvider` y `NothingDotMatrixRenderer` en Android heredan dinámicamente los temas **`Default`**, **`Default claro`** y **`NothingOS`** más los **8 colores de resaltado** (título limpio sin matriz de puntos fuera de `NothingOS`).
+  - El Plasmoid de KDE Plasma 6 (`linux-kde/plasmoid/contents/ui/main.qml`) sincroniza sus colores desde `ui_settings` emitido por `autoq-cli status`.
+- **Preamp con medidor anti-*clipping*, comparación A/B y exportadores multi-formato (Escritorio + Android)**:
+  - Control manual/automático de **Preamp** (`-18..+6 dB`) y barra visual de **Headroom** aplicada en PipeWire (nodo `mixer`), Equalizer APO y `GlobalEqService`.
+  - Comparación instantánea **A / B** (`Slot A`, `Slot B`, `A→B` / `B→A`) en la pestaña **EQ**.
+  - Exportación adicional a **EasyEffects** (`v7 JSON`), **CamillaDSP** (`v2 YAML`) y **Wavelet** (`GraphicEQ:` de 127 bandas normalizado a ≤ 0 dB) en GUI, Android y `autoq-cli` (`export-format` / `eq --format`).
+- **Distribución y documentación**:
+  - Añadido perfil [`packaging/android/obtainium-autoq.json`](./packaging/android/obtainium-autoq.json), evaluación técnica [`docs/ANDROID_RUST_CORE_EVAL.md`](./docs/ANDROID_RUST_CORE_EVAL.md) y limpiados los READMEs al flujo actual.
+
+---
+
 ## [2.1.2] — 2026-11-26
 
 ### Añadido / Cambiado

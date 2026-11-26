@@ -40,6 +40,8 @@ data class PersistedAppState(
     val customPresets: List<EqPreset> = emptyList(),
     val themeId: String = "pure_hyper",
     val accentId: String = "auto",
+    val preampDb: Double = 0.0,
+    val autoPreamp: Boolean = true,
 )
 
 class AppPreferencesStore(context: Context) {

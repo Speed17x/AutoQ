@@ -1,8 +1,8 @@
 [package]
 name = "autoq-daemon"
-version = "2.1.2"
-edition = "2021"
-license = "GPL-2.0-or-later"
+version = "2.2.0"
+edition.workspace = true
+license.workspace = true
 description = "Optional background auto-profile daemon for AutoQ (watches USB udev/serial & PipeWire sinks)"
 
 [[bin]]
@@ -10,5 +10,5 @@ name = "autoq-daemon"
 path = "src/main.rs"
 
 [dependencies]
-autoq-core = { path = "../autoq-core" }
-serde_json = "1.0"
+autoq-core = { workspace = true }
+serde_json = { workspace = true }

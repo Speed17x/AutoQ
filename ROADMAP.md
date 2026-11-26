@@ -1,45 +1,81 @@
-# Roadmap de AutoQ (Estrategia *Rust-First*)
+# Roadmap de AutoQ
 
-Este documento registra el progreso y la evolución técnica del monorepo **AutoQ**, priorizando **Rust nativo** en escritorio (Linux y Windows) y **Kotlin + Jetpack Compose** en Android.
+Este documento registra los hitos completados del proyecto y la hoja de ruta técnica para **AutoQ**, elaborada a partir de la auditoría directa del código base (*Rust workspace* + *Android Kotlin/Compose*) y las recomendaciones de calidad, seguridad y madurez multiplataforma.
 
 ---
 
-## Fase 1 — `v1.1.0`: Motor Nativo Unificado en Rust (`autoq-core` + `autoq-cli`) — ✅ Completada
+## Hitos Completados (`v1.1.0` → `v2.1.2`)
 
+### Fase 1 — `v1.1.0`: Motor Nativo Unificado en Rust (`autoq-core` + `autoq-cli`) — ✅ Completada
 - [x] Workspace Cargo (`Cargo.toml`) con `crates/autoq-core` y `crates/autoq-cli`.
 - [x] Motor matemático RBJ/PEQ (`biquad.rs`) en `< 0.5 ms` eliminando `numpy`.
 - [x] Motor AutoEQ concurrente de 8 fuentes (+14,500 curvas) con caché SHA-1 retrocompatible y atribución visible (`autoq-cli eq`).
-- [x] Backends nativos de PipeWire 10B, Bluetooth Classic SPP RFCOMM y Equalizer APO, más telemetría sub-milisegundo (`poll` en `1 ms` y `waybar-status`).
+- [x] Backends nativos de PipeWire 10B, Bluetooth Classic SPP RFCOMM y Equalizer APO, más telemetría sub-milisegundo (`poll` en `~1 ms` y `waybar-status`).
 - [x] Migración automática de `~/.config/chu2-dsp-widget` → `~/.config/autoq`.
 
----
+### Fase 2 — `v2.0.0`: GUI 100 % Nativa en Rust, DSP Multiprotocolo y CI/CD — ✅ Completada
+- [x] **Expansión USB-C HID inicial (`crates/autoq-core/src/hid.rs`)**: KTMicro 5B, Moondrop 8B, WalkPlay (19 VIDs, 5–10B) y FiiO / JadeAudio / SNOWSKY (5–10B), más `autoq-cli hid-scan --all`.
+- [x] **GUI de Escritorio 100 % Nativa en Rust (`crates/autoq-gui` con `eframe`/`egui`)**: gráfico interactivo PEQ/FR arrastrable con rueda `Q`, modo widget compacto ↔ app de 3 pestañas, IPC Hyprland e instaladores 1-clic en *Avanzado*.
+- [x] Eliminación total de Python / PySide6 / PyInstaller en AppImage, `.deb`, `AUR` y Windows.
+- [x] **CI/CD oficial** en [`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml) con pruebas Rust y publicación automatizada multi-plataforma (`AppImage`, `.deb`, binarios sueltos, Windows `.zip`, Android `.apk` y `SHA256SUMS.txt`).
 
-## Fase 2 — `v2.0.0`: GUI 100 % Nativa en Rust, DSP Multiprotocolo y CI/CD Completo — ✅ Completada
-
-- [x] **Expansión USB-C HID Multiprotocolo (`crates/autoq-core/src/hid.rs`)**:
-  - **KTMicro 5 bandas (`0x31B2`)**: Moondrop, Kiwi Ears Allegro Mini/PRO, JCALLY, Tanchjim KTMicro.
-  - **Moondrop 8 bandas**: FreeDSP Pro/Mini, Rays, AG Rays, Marigold, DAWN PRO 2, Echo A, MOONRIVER 3, DHA15.
-  - **WalkPlay (19 VIDs, 5–10 bandas)**: Tanchjim Bunny/Stargate II/Space Pro, CrinEar Protocol Max, NiceHCK, LETSHUOER, ddHifi, Truthear.
-  - **FiiO / JadeAudio / SNOWSKY (5–10 bandas)**: JA11, JIEZI, KA15, KA17, BTR13, BTR17, QX13, Q7, BT11, Melody, TINY.
-  - Comando de diagnóstico `autoq-cli hid-scan --all` y reglas `udev` ampliadas ([`packaging/udev/99-autoq-usb-dsp.rules`](./packaging/udev/99-autoq-usb-dsp.rules)).
-- [x] **GUI de Escritorio 100 % Nativa en Rust (`crates/autoq-gui` con `eframe`/`egui`)**:
-  - Estética Nothing OS (matriz de puntos 5×7, gráfico interactivo PEQ/FR arrastrable con rueda `Q`, modo widget compacto ↔ app completa de 3 pestañas, IPC Hyprland).
-  - Cero Python / PySide6 / PyInstaller en AppImage, `.deb`, `AUR` y Windows (`AutoQ.exe`).
-  - Botones 1-clic integrados en *Avanzado* para Widget Hyprland, Plasmoid KDE 6 y reglas `udev`.
-- [x] **CI/CD oficial activado en [`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml)**:
-  - Ejecuta `cargo test --workspace` en cada push/PR, y compila automáticamente AppImage 100 % Rust, `.deb`, binarios sueltos, Windows `.zip`, Android `.apk` y `SHA256SUMS.txt` en cada tag `v*`.
-- [x] **Capturas reales Nothing OS** generadas en `docs/screenshots/` e integradas en [`README.md`](./README.md).
+### Fase 3 — `v2.1.0` – `v2.1.2`: Daemon Auto-Perfil, 8 Familias DSP, Temas Modulares y Firma Android — ✅ Completada
+- [x] **Daemon residente opcional (`crates/autoq-daemon`)**: escucha `udevadm monitor` + `pactl subscribe` en Linux (y sondeo en Windows) para aplicar automáticamente perfiles guardados en `daemon_profiles.json` + unidad `systemd --user`.
+- [x] **8 familias DSP completas (Escritorio + paridad Android)**: añadidas **JDS Labs Element IV** (12B USB-CDC Serial JSON), **Topping DX1 II / E50 II** (11B L+R HID + CRC-16), **Fosi Audio DS3** (8B HID `float32 LE`) y **Qudelix-5K** (10B HID bitstream V3).
+- [x] **Limpieza de legado v1** y paridad funcional en Android (botón y notificación para apagar el EQ y detener por completo `GlobalEqService` y la app).
+- [x] **Sistema de temas modulares + color de resaltado + Consolas (`v2.1.2`)**: temas **`Default`**, **`Default claro`** y **`NothingOS`** (opcional), selector de 8 colores de resaltado y tipografía Consolas / Inconsolata en `autoq-gui` y Android.
+- [x] **Firma permanente de APK `release` en CI (`v2.1.2`)**: `signingConfigs.release` en `android/app/build.gradle.kts` con secretos cifrados en GitHub Actions para permitir actualizaciones directas encima en Android sin desinstalar.
 
 ---
 
-## Fase 3 — `v2.1.0`: Daemon Auto-Perfil y Protocolos DSP Avanzados — 🚀 Código Completado
+## Próximas Fases
 
-- [x] **Daemon residente opcional (`crates/autoq-daemon`)**: escucha eventos `udevadm monitor` + `pactl subscribe` en Linux (y sondeo ligero en Windows), aplicando automáticamente reglas por dispositivo (`~/.config/autoq/daemon_profiles.json`) o perfiles PipeWire guardados al conectar audífonos; incluye unidad `systemd --user` y gestión en 1 clic desde *Avanzado*.
-- [x] **Protocolos DSP adicionales (8 familias en total)**:
-  - **JDS Labs Element IV (`crates/autoq-core/src/jds_serial.rs`)**: USB-CDC Serial JSON (`115200 8N1`, `Describe` / `Update` 12 bandas `2 LSQ + 8 PK + 2 HSQ`).
-  - **Topping DX1 II / E50 II (`crates/autoq-core/src/hid.rs`)**: HID 11 bandas L+R en tramas de 16 bytes (`0x22 0x33 ... 0x66 0x77 0x00`, broadcast `upload 0x1106` y CRC-16/MODBUS).
-  - **Fosi Audio DS3 (`crates/autoq-core/src/hid.rs`)**: HID 8 bandas (`0x77` Feature/Output reports, `float32 LE`).
-  - **Qudelix-5K (`crates/autoq-core/src/hid.rs`)**: HID 10 bandas (decodificador bitstream V3 de 88 bytes + `SetEqBandParam 0x070F`).
-- [x] **Paridad Android (`v2.1.0`)**: portados los 6 protocolos nuevos a Kotlin/USB Host (8 familias completas) + botón y acción de notificación para apagar el EQ y detener por completo `GlobalEqService` y la app.
-- [ ] **Publicación oficial en AUR (`paru -S autoq-bin`)**: en cuanto Arch Linux reabra el registro de cuentas nuevas en `aur.archlinux.org` (llave SSH y `PKGBUILD` + `.SRCINFO` ya preparados).
-- [ ] **Validación física en Windows 10/11 y más hardware DSP**: pruebas en hardware real para `AutoQ.exe` (`hidapi` + Equalizer APO) y las familias JDS Labs / Topping / Fosi / Qudelix / FiiO / WalkPlay.
+### Fase 4 — `v2.2.0`: Seguridad, Confianza en Windows, Higiene de Workspace y Documentación — ✅ Integrada (salvo trámites externos)
+
+> Objetivo: cerrar los hallazgos técnicos, de confianza de binarios y de seguridad detectados en la revisión del repositorio sin añadir complejidad innecesaria.
+
+- [x] **Experiencia limpia e instalador único en Windows (`AutoQ-Setup-x64.exe`)**:
+  - Eliminado el lanzamiento de `powershell.exe` al escanear JDS Labs Element IV (reemplazado por consulta directa al Registro de Windows vía `winreg`, cero ventanas de terminal emergentes), protegido `platform_linux::run_cmd` fuera de Linux, embebido ícono/metadatos PE nativos (`winresource`) e integrado instalador único con Inno Setup 6 y *hook* `signtool` en CI.
+- [ ] **Firma Authenticode gratuita para Windows (SignPath Foundation) y envío de PR a WinGet**:
+  - Registrar el proyecto en **SignPath Foundation** y enviar el manifiesto preparado ([`packaging/winget/Speed17x.AutoQ.yaml`](./packaging/winget/Speed17x.AutoQ.yaml), guía en [`packaging/winget/README.md`](./packaging/winget/README.md)) a **`microsoft/winget-pkgs`** para habilitar `winget install Speed17x.AutoQ`.
+
+- [x] **Endurecimiento de permisos `udev` (`MODE="0660", TAG+="uaccess"`)**:
+  - Reemplazado `MODE="0666"` por `MODE="0660", TAG+="uaccess"` en [`packaging/udev/99-autoq-usb-dsp.rules`](./packaging/udev/99-autoq-usb-dsp.rules) y unificado mediante `include_str!` en el instalador 1-clic de `autoq-gui`, restringiendo `/dev/hidraw*` y `/dev/ttyACM*` al usuario físico activo mediante `systemd-logind`.
+- [x] **Licencia raíz formal, metadatos de GitHub y limpieza de sub-READMEs**:
+  - Añadido [`LICENSE`](./LICENSE) (`GPL-2.0-or-later`) en la raíz, configurados descripción corta y *topics* en `Speed17x/AutoQ` y actualizados [`linux-hyprland/README.md`](./linux-hyprland/README.md), [`android/README.md`](./android/README.md), [`packaging/README.md`](./packaging/README.md), [`linux-appimage/README.md`](./linux-appimage/README.md) y [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) al flujo 100 % Rust (sin `python-pyside6`, `pyinstaller` ni referencias fijas a `1.1.0`).
+- [x] **Seguridad de suministro en instalador y CI/CD**:
+  - Actualizado [`install-linux.sh`](./install-linux.sh) para verificar todos los binarios contra `SHA256SUMS.txt` antes de instalar (soportando `x86_64` y `aarch64`) e instalando `autoq-daemon`.
+  - Reducido `permissions` global en [`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml) a `contents: read` (dejando `contents: write` únicamente en `publish-release`).
+- [x] **Higiene del *workspace* Cargo y encapsulación de `unsafe`**:
+  - Centralizadas las dependencias compartidas bajo `[workspace.package]` y `[workspace.dependencies]` en [`Cargo.toml`](./Cargo.toml).
+  - Aisladas todas las llamadas POSIX `libc` tras el *wrapper* RAII seguro [`crates/autoq-core/src/posix_fd.rs`](./crates/autoq-core/src/posix_fd.rs) (`OwnedFd`), endurecidos los *clamps* contra `NaN`/`±∞` y ampliadas las pruebas unitarias con paquetes HID/JDS truncados y malformados.
+
+---
+
+### Fase 5 — `v2.2.0`: Coherencia Visual en Widgets, Herramientas Audiófilas y Distribución — ✅ Integrada (salvo trámites externos)
+
+- [x] **Widgets sincronizados con los temas modulares**:
+  - Adaptado `NothingEqWidgetProvider` + `NothingDotMatrixRenderer` en Android (fondos, bordes, color de acento dinámico y título limpio sin matriz de puntos en `Default` / `Default claro`) y el Plasmoid QML de KDE Plasma 6 (`linux-kde/plasmoid/contents/ui/main.qml`) leyendo `ui_settings` desde `autoq-cli status`.
+- [x] **Funciones de ecualización avanzada (Escritorio + paridad Android)**:
+  - Control manual explícito de **Preamp** (dB) con modo `AUTO` y medidor visual de margen anti-*clipping* aplicado tanto a PipeWire (`mixer`), Equalizer APO y Android `GlobalEqService`.
+  - Comparación instantánea **A / B** entre dos curvas y preamps (`Slot A` / `Slot B` + copia `A→B` / `B→A`) en la pestaña **EQ** sin tocar la memoria flash.
+  - Exportación multi-formato adicional hacia **EasyEffects** (JSON), **CamillaDSP** (YAML) y **Wavelet** (`GraphicEQ:` de 127 bandas normalizado a ≤ 0 dB) además de `ParametricEQ.txt` (en GUI, Android y CLI `--format` / `export-format`).
+- [x] **Evaluación de núcleo compartido `autoq-core` en Android (`JNI` / `UniFFI`)**:
+  - Documentado el análisis técnico completo y veredicto por etapas en [`docs/ANDROID_RUST_CORE_EVAL.md`](./docs/ANDROID_RUST_CORE_EVAL.md).
+- [x] **Compilaciones Linux ARM64 (`aarch64`) y perfil Obtainium**:
+  - Añadido job `build-linux-arm64` (`ubuntu-24.04-arm`) en GitHub Actions generando `autoq-{gui,cli,daemon}-linux-aarch64` con soporte nativo en `install-linux.sh`.
+  - Publicada configuración lista para importar en **Obtainium** en [`packaging/android/obtainium-autoq.json`](./packaging/android/obtainium-autoq.json).
+- [ ] **Canales externos pendientes de publicación (AUR y Flatpak)**:
+  - Publicar `autoq` / `autoq-bin` en **AUR** (`aur.archlinux.org`) cuando se habilite el registro de cuenta y explorar empaquetado **Flatpak**.
+
+---
+
+### Fase 6 — `v3.0.0`: Matriz de Hardware Verificado, BLE DSP y Nuevos Ecosistemas (Largo Plazo)
+
+- [ ] **Matriz pública de hardware verificado y pruebas completas en Windows 10/11**:
+  - Validar en equipos Windows físicos las 8 familias DSP (`hidapi`, puertos COM USB-CDC y Equalizer APO) para mantener una matriz pública de firmwares probados por modelo (`VID:PID`).
+  - Añadir comando `autoq-cli hid-scan --dump-descriptors` de solo lectura para facilitar que la comunidad reporte nuevos `VID:PID` y variaciones de *firmware*, manteniendo una tabla documentada de compatibilidad probada por modelo.
+- [ ] **Transporte inalámbrico BLE GATT DSP**:
+  - Control Bluetooth Low Energy GATT sin cable USB para dispositivos como Qudelix-5K y receptores FiiO de la serie BTR.
+- [ ] **Expansión a macOS (`aarch64-apple-darwin`) y nuevos chips DSP**:
+  - Soporte experimental para audio/HID en macOS y nuevas familias USB-C DSP (Savitech, Synaptics/Conexant u otros DACs portátiles con PEQ hardware).
