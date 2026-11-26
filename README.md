@@ -11,8 +11,10 @@ Permite controlar tanto **hardware DSP USB-C integrado** (Moondrop Chu 2 DSP, Fr
 | Carpeta | Plataforma | Interfaz | Motor de EQ |
 | :--- | :--- | :--- | :--- |
 | [`android/`](./android/) | **Android 9+ (API 28–36)** | App nativa Jetpack Compose + Widget de pantalla de inicio estilo Nothing OS | USB-C HID (5/8 bandas), Bluetooth SPP y servicio global `GlobalEqService` |
+| [`linux-appimage/`](./linux-appimage/) | **Linux Universal (AppImage x86_64)** | App de escritorio independiente (GNOME, KDE, Hyprland, XFCE) + instaladores opcionales de widgets | USB-C HID directo (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
 | [`linux-hyprland/`](./linux-hyprland/) | **Linux / Hyprland (Wayland)** | Widget flotante compacto + App PySide6 de 3 pestañas + módulo Waybar | USB-C HID directo (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
 | [`linux-kde/`](./linux-kde/) | **Linux / KDE Plasma 6** | Plasmoid nativo QML (`org.hector.moondropeq`) + App de escritorio Qt6/PySide6 | Backend JSON CLI compartido (`moondrop_backend.py`) + USB HID / PipeWire / ALSA helper |
+| [`windows-beta/`](./windows-beta/) | **Windows 10/11 (`BETA — SIN TESTEAR`)** | App de escritorio PySide6 estilo Nothing OS | USB-C HID vía `hidapi` (KTMicro 5 bandas) + EQ global de 10 bandas vía **Equalizer APO** |
 | [`docs/`](./docs/) | **Documentación técnica** | — | [Arquitectura](./docs/ARCHITECTURE.md) y [Protocolo USB HID](./docs/USB_HID_PROTOCOL.md) |
 
 ---
@@ -73,6 +75,27 @@ kpackagetool6 --type Plasma/Applet --install plasmoid
 # O ejecutar la app de escritorio Qt6
 ./launch.sh
 ```
+
+### 4. Linux Universal — AppImage (`linux-appimage/`)
+Consulta la guía completa en [`linux-appimage/README.md`](./linux-appimage/README.md).
+```bash
+chmod +x AutoQ-x86_64.AppImage
+./AutoQ-x86_64.AppImage                        # Abre la app completa independiente
+./AutoQ-x86_64.AppImage --install-hyprland-widget   # (Opcional) Instala widget de Hyprland
+./AutoQ-x86_64.AppImage --install-kde-plasmoid      # (Opcional) Instala Plasmoid KDE Plasma 6
+```
+
+### 5. Windows 10/11 — `BETA / SIN TESTEAR` (`windows-beta/`)
+> [!WARNING]
+> **Versión Beta sin testear en hardware Windows real.** Consulta las limitaciones y advertencias en [`windows-beta/README.md`](./windows-beta/README.md).
+
+```powershell
+cd windows-beta
+python -m pip install -r requirements.txt
+python autoq_windows.py
+```
+
+Los binarios **`AutoQ-x86_64.AppImage`** y **`AutoQ-Windows-Beta-x64.zip`** también se compilan automáticamente mediante **GitHub Actions** ([`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml)).
 
 ---
 

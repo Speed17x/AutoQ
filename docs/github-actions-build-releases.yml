@@ -1,0 +1,92 @@
+name: Build AutoQ Releases (Linux AppImage & Windows Beta)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-appimage:
+    name: Linux AppImage (x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies for Qt / AppImage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 fuse libfuse2 squashfs-tools curl
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller PySide6 numpy requests
+
+      - name: Build AutoQ-x86_64.AppImage
+        run: |
+          chmod +x linux-appimage/build_appimage.sh
+          ./linux-appimage/build_appimage.sh
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoQ-Linux-AppImage
+          path: linux-appimage/dist/AutoQ-x86_64.AppImage
+
+  build-windows-beta:
+    name: Windows Beta Portable (x64 - Untested)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build AutoQ-Windows-Beta.exe
+        shell: pwsh
+        working-directory: windows-beta
+        run: |
+          .\build_windows.ps1
+          Compress-Archive -Path "dist\AutoQ-Windows-Beta\*" -DestinationPath "dist\AutoQ-Windows-Beta-x64.zip" -Force
+
+      - name: Upload Windows Beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoQ-Windows-Beta-x64
+          path: windows-beta/dist/AutoQ-Windows-Beta-x64.zip
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux-appimage, build-windows-beta]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ### Descargas incluidas
+            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación independiente para cualquier distribución/escritorio Linux, con instaladores opcionales de widgets (`--install-hyprland-widget` / `--install-kde-plasmoid`).
+            - **Windows Beta (`AutoQ-Windows-Beta-x64.zip`)**: ⚠️ **VERSIÓN BETA SIN TESTEAR** en hardware Windows real (usa `hidapi` para USB-C HID y Equalizer APO para EQ global de 10 bandas).
+          files: |
+            release-assets/AutoQ-Linux-AppImage/AutoQ-x86_64.AppImage
+            release-assets/AutoQ-Windows-Beta-x64/AutoQ-Windows-Beta-x64.zip

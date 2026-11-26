@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AutoQ
+GenericName=Universal Parametric EQ & AutoEQ
+Comment=Ecualizador paramétrico universal USB-C DSP, Bluetooth y PipeWire con +14,500 curvas AutoEq
+Exec=autoq
+Icon=autoq
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;
+StartupWMClass=autoq-widget
