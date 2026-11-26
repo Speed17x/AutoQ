@@ -31,15 +31,8 @@ if [ -x "${REPO_ROOT}/target/release/autoq-gui" ] && [ -x "${REPO_ROOT}/target/r
     echo "[OK] Instalado widget 100% Rust nativo en: ${BIN_DIR}/autoq-widget"
     echo "[OK] Instalado motor CLI Rust en:         ${BIN_DIR}/autoq-cli"
 else
-    echo "[!] Cargo no disponible; instalando interfaz Python de respaldo..."
-    mkdir -p "${INSTALL_DIR}/backend"
-    cp -f "${SCRIPT_DIR}/autoq_hyprland.py" "${INSTALL_DIR}/"
-    cp -f "${SCRIPT_DIR}/backend/"*.py "${INSTALL_DIR}/backend/" 2>/dev/null || true
-    cat > "${BIN_DIR}/autoq-widget" <<EOF
-#!/usr/bin/env bash
-exec python3 "${INSTALL_DIR}/autoq_hyprland.py" "\$@"
-EOF
-    chmod +x "${BIN_DIR}/autoq-widget"
+    echo "[ERROR] Se requiere Cargo/Rust (https://rustup.rs) o descargar AutoQ-x86_64.AppImage desde Releases."
+    exit 1
 fi
 
 # 2. Crear lanzador .desktop

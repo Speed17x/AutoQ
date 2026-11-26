@@ -113,8 +113,8 @@ Consulta la guía completa en [`linux-kde/README.md`](./linux-kde/README.md).
 cd linux-kde
 # Instalar el plasmoid de KDE Plasma 6 (usa autoq-cli en Rust automáticamente)
 kpackagetool6 --type Plasma/Applet --install plasmoid
-# O ejecutar la app de escritorio Qt6
-./launch.sh
+# O ejecutar la app de escritorio nativa en Rust
+autoq
 ```
 
 ### 5. Linux Universal — AppImage (`linux-appimage/`)
@@ -132,11 +132,10 @@ chmod +x AutoQ-x86_64.AppImage
 
 ```powershell
 cd windows-beta
-python -m pip install -r requirements.txt
-python autoq_windows.py
+.\build_windows.ps1
 ```
 
-Los binarios **`AutoQ-x86_64.AppImage`** y **`AutoQ-Windows-Beta-x64.zip`** también se compilan automáticamente mediante **GitHub Actions** ([`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml)).
+Los binarios **`AutoQ-x86_64.AppImage`**, **`autoq_*_amd64.deb`** y **`AutoQ-Windows-x64.zip`** también se compilan automáticamente mediante **GitHub Actions** ([`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml)).
 
 ---
 
