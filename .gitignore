@@ -34,6 +34,9 @@ windows-beta/build/
 windows-beta/dist/
 packaging/deb/build/
 packaging/deb/dist/
+packaging/aur/src/
+packaging/aur/pkg/
+packaging/aur/*.tar.gz
 *.spec
 *.AppImage
 *.deb
