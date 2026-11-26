@@ -4,6 +4,17 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [2.1.2] — 2026-11-26
+
+### Añadido / Cambiado
+- **Temas renombrados y color de resaltado seleccionable (Escritorio `autoq-gui` + Android)**:
+  - Temas renombrados a **`Default`**, **`Default claro`** y **`NothingOS`**.
+  - Selector de **color de resaltado** de 8 opciones (`Tema`, `Azul`, `Rojo`, `Verde`, `Violeta`, `Naranja`, `Cian`, `Rosa`) adaptado para modo oscuro y claro, persistente en `ui_settings.json` (`crates/autoq-core/src/config.rs`) y `AppPreferencesStore` en Android.
+- **Firma permanente en Android (`assembleRelease`)**:
+  - Configuración de `signingConfigs.release` en `android/app/build.gradle.kts` y generación/limpieza de keystore en CI (`.github/workflows/build-releases.yml`) para que todas las versiones futuras se actualicen encima sin desinstalar.
+
+---
+
 ## [2.1.1] — 2026-11-26
 
 ### Añadido / Cambiado

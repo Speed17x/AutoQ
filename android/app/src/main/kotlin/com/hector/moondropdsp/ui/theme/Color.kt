@@ -7,13 +7,36 @@ enum class AppThemeId(
     val label: String,
     val subtitle: String,
 ) {
-    PURE_HYPER("pure_hyper", "Android / HyperOS", "Oscuro limpio estilo HyperOS + Consolas"),
-    PURE_LIGHT("pure_light", "HyperOS Claro", "Material claro + azul HyperOS + Consolas"),
-    NOTHING_OS("nothing_os", "Nothing OS", "Obsidiana + Matriz de puntos + Rojo");
+    PURE_HYPER("pure_hyper", "Default", "Oscuro limpio + Consolas"),
+    PURE_LIGHT("pure_light", "Default claro", "Claro limpio + Consolas"),
+    NOTHING_OS("nothing_os", "NothingOS", "Obsidiana + Matriz de puntos");
 
     companion object {
         fun fromKey(key: String?): AppThemeId =
             entries.firstOrNull { it.key == key } ?: PURE_HYPER
+    }
+}
+
+enum class AppAccentId(
+    val key: String,
+    val label: String,
+    val darkColor: Color?,
+    val lightColor: Color?,
+) {
+    AUTO("auto", "Tema", null, null),
+    BLUE("blue", "Azul", Color(0xFF3482FF), Color(0xFF2563EB)),
+    RED("red", "Rojo", Color(0xFFD71921), Color(0xFFDC2626)),
+    EMERALD("emerald", "Verde", Color(0xFF10B981), Color(0xFF059669)),
+    PURPLE("purple", "Violeta", Color(0xFF8B5CF6), Color(0xFF7C3AED)),
+    ORANGE("orange", "Naranja", Color(0xFFF97316), Color(0xFFEA580C)),
+    CYAN("cyan", "Cian", Color(0xFF0EA5E9), Color(0xFF0284C7)),
+    PINK("pink", "Rosa", Color(0xFFEC4899), Color(0xFFDB2777));
+
+    fun resolveColor(isDark: Boolean): Color? = if (isDark) darkColor else lightColor
+
+    companion object {
+        fun fromKey(key: String?): AppAccentId =
+            entries.firstOrNull { it.key == key } ?: AUTO
     }
 }
 
@@ -125,10 +148,17 @@ val NothingOsTokens = AutoQThemeTokens(
     useDotMatrixGrid = true,
 )
 
-fun tokensFor(id: AppThemeId): AutoQThemeTokens = when (id) {
-    AppThemeId.PURE_HYPER -> PureHyperTokens
-    AppThemeId.PURE_LIGHT -> PureLightTokens
-    AppThemeId.NOTHING_OS -> NothingOsTokens
+fun tokensFor(id: AppThemeId, accentId: AppAccentId = AppAccentId.AUTO): AutoQThemeTokens {
+    val base = when (id) {
+        AppThemeId.PURE_HYPER -> PureHyperTokens
+        AppThemeId.PURE_LIGHT -> PureLightTokens
+        AppThemeId.NOTHING_OS -> NothingOsTokens
+    }
+    val overrideColor = accentId.resolveColor(base.isDark) ?: return base
+    return base.copy(
+        accent = overrideColor,
+        accentDim = overrideColor.copy(alpha = if (base.isDark) 0.20f else 0.16f),
+    )
 }
 
 // Compatibility aliases used during transition/defaults

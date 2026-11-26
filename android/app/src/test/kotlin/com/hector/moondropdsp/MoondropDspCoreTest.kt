@@ -9,6 +9,9 @@ import com.hector.moondropdsp.dsp.FilterType
 import com.hector.moondropdsp.hardware.DspProtocol
 import com.hector.moondropdsp.hardware.MoondropDeviceCatalog
 import com.hector.moondropdsp.hardware.MoondropProtocolCodec
+import com.hector.moondropdsp.ui.theme.AppAccentId
+import com.hector.moondropdsp.ui.theme.AppThemeId
+import com.hector.moondropdsp.ui.theme.tokensFor
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -346,5 +349,18 @@ class MoondropDspCoreTest {
         assertEquals(3.2, jBands[0].gain, 0.01)
         assertEquals(-2.4, jBands[2].gain, 0.01)
         assertEquals(1.6, jBands[10].gain, 0.01)
+    }
+
+    @Test
+    fun modularThemesHaveUpdatedNamesAndAccentOverride() {
+        assertEquals("Default", AppThemeId.PURE_HYPER.label)
+        assertEquals("Default claro", AppThemeId.PURE_LIGHT.label)
+        assertEquals("NothingOS", AppThemeId.NOTHING_OS.label)
+
+        val custom = tokensFor(AppThemeId.PURE_HYPER, AppAccentId.EMERALD)
+        assertEquals(AppAccentId.EMERALD.darkColor, custom.accent)
+
+        val lightCustom = tokensFor(AppThemeId.PURE_LIGHT, AppAccentId.PURPLE)
+        assertEquals(AppAccentId.PURPLE.lightColor, lightCustom.accent)
     }
 }

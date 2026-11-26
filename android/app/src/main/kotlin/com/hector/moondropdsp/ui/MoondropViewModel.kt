@@ -30,6 +30,7 @@ import com.hector.moondropdsp.hardware.GlobalEqService
 import com.hector.moondropdsp.hardware.MoondropDevice
 import com.hector.moondropdsp.hardware.UsbDiagnosticEntry
 import com.hector.moondropdsp.hardware.UsbMoondropTransport
+import com.hector.moondropdsp.ui.theme.AppAccentId
 import com.hector.moondropdsp.ui.theme.AppThemeId
 import com.hector.moondropdsp.widget.NothingEqWidgetProvider
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +89,7 @@ data class MoondropUiState(
     val usbDiagnostics: List<UsbDiagnosticEntry> = emptyList(),
     val audioOutputDiagnostics: List<String> = emptyList(),
     val themeId: AppThemeId = AppThemeId.PURE_HYPER,
+    val accentId: AppAccentId = AppAccentId.AUTO,
 )
 
 class MoondropViewModel(application: Application) : AndroidViewModel(application) {
@@ -197,6 +199,7 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
             btSessionZeroFallback = snap.btSessionZeroFallback,
             hasBluetoothPermission = btTransport.hasBluetoothConnectPermission(),
             themeId = AppThemeId.fromKey(snap.themeId),
+            accentId = AppAccentId.fromKey(snap.accentId),
         )
     }
 
@@ -204,6 +207,12 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(themeId = theme) }
         store.updateSnapshot { it.copy(themeId = theme.key) }
         persistAndSyncWidget("Tema: ${theme.label}", false)
+    }
+
+    fun selectAccent(accent: AppAccentId) {
+        _uiState.update { it.copy(accentId = accent) }
+        store.updateSnapshot { it.copy(accentId = accent.key) }
+        persistAndSyncWidget("Color de resaltado: ${accent.label}", false)
     }
 
     fun onPermissionsChanged() {
@@ -841,6 +850,7 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
                 btGlobalEqEnabled = st.btGlobalEqEnabled,
                 btSessionZeroFallback = st.btSessionZeroFallback,
                 themeId = st.themeId.key,
+                accentId = st.accentId.key,
             )
         }
         if (status != null) {

@@ -9,7 +9,9 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -51,15 +55,18 @@ import com.hector.moondropdsp.ui.components.NothingPillChip
 import com.hector.moondropdsp.ui.components.NothingPrimaryButton
 import com.hector.moondropdsp.ui.components.NothingSectionLabel
 import com.hector.moondropdsp.ui.components.NothingStatusDot
+import com.hector.moondropdsp.ui.theme.AppAccentId
 import com.hector.moondropdsp.ui.theme.AppThemeId
 import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
 import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
+import com.hector.moondropdsp.ui.theme.tokensFor
 import com.hector.moondropdsp.widget.NothingEqWidgetProvider
 
 @Composable
 fun AdvancedScreen(
     state: MoondropUiState,
     onSelectTheme: (AppThemeId) -> Unit = {},
+    onSelectAccent: (AppAccentId) -> Unit = {},
     onApplyPreset: (EqPreset) -> Unit,
     onSavePreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
@@ -139,6 +146,68 @@ fun AdvancedScreen(
                             )
                         }
                         NothingStatusDot(active = selected, size = 8.dp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            NothingSectionLabel(
+                text = "Color de resaltado",
+                trailing = state.accentId.label,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                AppAccentId.entries.forEach { acc ->
+                    val selected = acc == state.accentId
+                    val swatchColor = acc.resolveColor(t.isDark) ?: tokensFor(state.themeId).accent
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onSelectAccent(acc) }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) t.textPrimary else t.border,
+                                    shape = CircleShape,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(swatchColor),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (acc == AppAccentId.AUTO) {
+                                    Text(
+                                        text = "T",
+                                        color = t.textOnAccent,
+                                        fontFamily = ConsolasFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = acc.label,
+                            color = if (selected) t.textPrimary else t.textMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
                     }
                 }
             }

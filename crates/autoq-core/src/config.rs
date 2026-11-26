@@ -119,9 +119,64 @@ impl UiThemeId {
 
     pub fn label(self) -> &'static str {
         match self {
-            UiThemeId::PureHyper => "Android / HyperOS",
-            UiThemeId::PureLight => "HyperOS Claro",
-            UiThemeId::NothingOs => "Nothing OS",
+            UiThemeId::PureHyper => "Default",
+            UiThemeId::PureLight => "Default claro",
+            UiThemeId::NothingOs => "NothingOS",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UiAccentId {
+    #[default]
+    Auto,
+    Blue,
+    Red,
+    Emerald,
+    Purple,
+    Orange,
+    Cyan,
+    Pink,
+}
+
+impl UiAccentId {
+    pub fn all() -> &'static [UiAccentId] {
+        &[
+            UiAccentId::Auto,
+            UiAccentId::Blue,
+            UiAccentId::Red,
+            UiAccentId::Emerald,
+            UiAccentId::Purple,
+            UiAccentId::Orange,
+            UiAccentId::Cyan,
+            UiAccentId::Pink,
+        ]
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            UiAccentId::Auto => "Tema",
+            UiAccentId::Blue => "Azul",
+            UiAccentId::Red => "Rojo",
+            UiAccentId::Emerald => "Verde",
+            UiAccentId::Purple => "Violeta",
+            UiAccentId::Orange => "Naranja",
+            UiAccentId::Cyan => "Cian",
+            UiAccentId::Pink => "Rosa",
+        }
+    }
+
+    pub const fn rgb(self, is_dark: bool) -> Option<(u8, u8, u8)> {
+        match self {
+            UiAccentId::Auto => None,
+            UiAccentId::Blue => Some(if is_dark { (0x34, 0x82, 0xFF) } else { (0x25, 0x63, 0xEB) }),
+            UiAccentId::Red => Some(if is_dark { (0xD7, 0x19, 0x21) } else { (0xDC, 0x26, 0x26) }),
+            UiAccentId::Emerald => Some(if is_dark { (0x10, 0xB9, 0x81) } else { (0x05, 0x96, 0x69) }),
+            UiAccentId::Purple => Some(if is_dark { (0x8B, 0x5C, 0xF6) } else { (0x7C, 0x3A, 0xED) }),
+            UiAccentId::Orange => Some(if is_dark { (0xF9, 0x73, 0x16) } else { (0xEA, 0x58, 0x0C) }),
+            UiAccentId::Cyan => Some(if is_dark { (0x0E, 0xA5, 0xE9) } else { (0x02, 0x84, 0xC7) }),
+            UiAccentId::Pink => Some(if is_dark { (0xEC, 0x48, 0x99) } else { (0xDB, 0x27, 0x77) }),
         }
     }
 }
@@ -130,6 +185,8 @@ impl UiThemeId {
 pub struct UiSettings {
     #[serde(default)]
     pub theme: UiThemeId,
+    #[serde(default)]
+    pub accent: UiAccentId,
 }
 
 pub fn ui_settings_file() -> PathBuf {
@@ -467,12 +524,24 @@ mod tests {
     fn ui_theme_defaults_to_pure_hyper_and_serializes() {
         let def = UiSettings::default();
         assert_eq!(def.theme, UiThemeId::PureHyper);
+        assert_eq!(def.accent, UiAccentId::Auto);
+        assert_eq!(UiThemeId::PureHyper.label(), "Default");
+        assert_eq!(UiThemeId::PureLight.label(), "Default claro");
+        assert_eq!(UiThemeId::NothingOs.label(), "NothingOS");
+
         let raw = serde_json::to_string(&UiSettings {
             theme: UiThemeId::NothingOs,
+            accent: UiAccentId::Emerald,
         })
         .unwrap();
         assert!(raw.contains("nothing_os"));
+        assert!(raw.contains("emerald"));
         let decoded: UiSettings = serde_json::from_str(&raw).unwrap();
         assert_eq!(decoded.theme, UiThemeId::NothingOs);
+        assert_eq!(decoded.accent, UiAccentId::Emerald);
+
+        let legacy: UiSettings = serde_json::from_str(r#"{"theme":"nothing_os"}"#).unwrap();
+        assert_eq!(legacy.theme, UiThemeId::NothingOs);
+        assert_eq!(legacy.accent, UiAccentId::Auto);
     }
 }

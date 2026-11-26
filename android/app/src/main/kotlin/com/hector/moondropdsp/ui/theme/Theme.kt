@@ -12,9 +12,10 @@ val LocalAutoQTheme = staticCompositionLocalOf { PureHyperTokens }
 @Composable
 fun MoondropDSPTheme(
     themeId: AppThemeId = AppThemeId.PURE_HYPER,
+    accentId: AppAccentId = AppAccentId.AUTO,
     content: @Composable () -> Unit,
 ) {
-    val tokens = tokensFor(themeId)
+    val tokens = tokensFor(themeId, accentId)
     val scheme = if (tokens.isDark) {
         darkColorScheme(
             primary = tokens.accent,

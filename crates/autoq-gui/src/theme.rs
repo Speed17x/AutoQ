@@ -7,7 +7,7 @@
 //! - `UiThemeId::NothingOs` (optional): Obsidian matte `#0B0C0E`, 5x7 dot-matrix headers, and
 //!   Nothing Red `#D71921` accents.
 
-use autoq_core::config::UiThemeId;
+use autoq_core::config::{UiAccentId, UiThemeId};
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Response, Sense, Stroke, StrokeKind,
     Vec2,
@@ -129,6 +129,34 @@ impl ThemePalette {
             },
         }
     }
+
+    pub fn for_theme_and_accent(id: UiThemeId, accent_id: UiAccentId) -> Self {
+        let mut p = Self::for_theme(id);
+        if let Some((r, g, b)) = accent_id.rgb(p.is_dark) {
+            let accent = Color32::from_rgb(r, g, b);
+            p.accent = accent;
+            p.accent_hover = adjust_brightness(accent, if p.is_dark { 22 } else { -22 });
+            p.accent_tint = blend_color(p.surface, accent, if p.is_dark { 0.16 } else { 0.14 });
+            p.tab_active = blend_color(p.surface_high, accent, if p.is_dark { 0.24 } else { 0.20 });
+            p.text_on_accent = Color32::WHITE;
+        }
+        p
+    }
+}
+
+fn blend_color(base: Color32, tint: Color32, alpha: f32) -> Color32 {
+    let inv = 1.0 - alpha;
+    let r = (base.r() as f32 * inv + tint.r() as f32 * alpha).round().clamp(0.0, 255.0) as u8;
+    let g = (base.g() as f32 * inv + tint.g() as f32 * alpha).round().clamp(0.0, 255.0) as u8;
+    let b = (base.b() as f32 * inv + tint.b() as f32 * alpha).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(r, g, b)
+}
+
+fn adjust_brightness(c: Color32, delta: i16) -> Color32 {
+    let r = (c.r() as i16 + delta).clamp(0, 255) as u8;
+    let g = (c.g() as i16 + delta).clamp(0, 255) as u8;
+    let b = (c.b() as i16 + delta).clamp(0, 255) as u8;
+    Color32::from_rgb(r, g, b)
 }
 
 static ACTIVE_PALETTE: RwLock<ThemePalette> = RwLock::new(ThemePalette::for_theme(UiThemeId::PureHyper));
@@ -180,9 +208,9 @@ fn ensure_consolas_fonts(ctx: &egui::Context) {
     });
 }
 
-pub fn apply_theme(ctx: &egui::Context, theme_id: UiThemeId) {
+pub fn apply_theme(ctx: &egui::Context, theme_id: UiThemeId, accent_id: UiAccentId) {
     ensure_consolas_fonts(ctx);
-    let p = ThemePalette::for_theme(theme_id);
+    let p = ThemePalette::for_theme_and_accent(theme_id, accent_id);
     if let Ok(mut guard) = ACTIVE_PALETTE.write() {
         *guard = p;
     }

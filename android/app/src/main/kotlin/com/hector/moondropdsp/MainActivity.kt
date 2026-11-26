@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
-            val tokens = tokensFor(state.themeId)
+            val tokens = tokensFor(state.themeId, state.accentId)
             androidx.compose.runtime.SideEffect {
                 enableEdgeToEdge(
                     statusBarStyle = if (tokens.isDark) {
@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
                     },
                 )
             }
-            MoondropDSPTheme(themeId = state.themeId) {
+            MoondropDSPTheme(themeId = state.themeId, accentId = state.accentId) {
                 MoondropAppShell(
                     state = state,
                     viewModel = viewModel,
@@ -194,6 +194,7 @@ private fun MoondropAppShell(
                 AppTab.ADVANCED -> AdvancedScreen(
                     state = state,
                     onSelectTheme = viewModel::selectTheme,
+                    onSelectAccent = viewModel::selectAccent,
                     onApplyPreset = viewModel::applyPreset,
                     onSavePreset = viewModel::saveCustomPreset,
                     onDeletePreset = viewModel::deleteCustomPreset,

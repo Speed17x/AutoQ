@@ -25,8 +25,8 @@ use autoq_core::biquad::{
 };
 use autoq_core::config::{
     load_daemon_config, load_presets, load_ui_settings, remove_device_rule, save_daemon_config,
-    save_presets, save_ui_settings, upsert_device_rule, DaemonConfig, UiSettings, UiThemeId,
-    DEFAULT_VIRTUAL_BANDS,
+    save_presets, save_ui_settings, upsert_device_rule, DaemonConfig, UiAccentId, UiSettings,
+    UiThemeId, DEFAULT_VIRTUAL_BANDS,
 };
 use autoq_core::hid::{self, MoondropDeviceInfo};
 use autoq_core::platform_linux::{self, PipeWireAudioDevice, PW_SINK_NAME};
@@ -40,7 +40,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use theme::{
     apply_theme, band_card, circle_icon_btn, draw_brand_title, inset_list_frame, nothing_slider,
-    outline_pill, palette, red_pill, section_label, segment_tab, sub_card_frame,
+    outline_pill, palette, red_pill, section_label, segment_tab, sub_card_frame, ThemePalette,
 };
 
 const BRAND_CHIPS: &[(&str, &str)] = &[
@@ -309,6 +309,7 @@ struct AutoQApp {
     daemon_cfg: DaemonConfig,
     daemon_active: bool,
     active_theme: UiThemeId,
+    active_accent: UiAccentId,
 
     status_text: String,
     status_error: bool,
@@ -316,8 +317,10 @@ struct AutoQApp {
 
 impl AutoQApp {
     fn new(cc: &eframe::CreationContext<'_>, start_full: bool, ipc_rx: Receiver<String>) -> Self {
-        let active_theme = load_ui_settings().theme;
-        apply_theme(&cc.egui_ctx, active_theme);
+        let ui_cfg = load_ui_settings();
+        let active_theme = ui_cfg.theme;
+        let active_accent = ui_cfg.accent;
+        apply_theme(&cc.egui_ctx, active_theme, active_accent);
         let (bg_tx, bg_rx) = mpsc::channel();
         let presets = load_presets();
         let selected_preset = presets
@@ -369,6 +372,7 @@ impl AutoQApp {
             daemon_cfg: load_daemon_config(),
             daemon_active: ipc::is_daemon_service_active(),
             active_theme,
+            active_accent,
             status_text: "INICIANDO MOTOR RUST...".to_string(),
             status_error: false,
         };
@@ -1583,9 +1587,69 @@ impl AutoQApp {
                         && !active
                     {
                         self.active_theme = tid;
-                        apply_theme(ctx, tid);
-                        let _ = save_ui_settings(&UiSettings { theme: tid });
+                        apply_theme(ctx, tid, self.active_accent);
+                        let _ = save_ui_settings(&UiSettings {
+                            theme: tid,
+                            accent: self.active_accent,
+                        });
                         self.set_status(format!("TEMA CAMBIADO A: {}", tid.label().to_uppercase()), false);
+                    }
+                }
+            });
+
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("COLOR DE RESALTADO:")
+                        .size(10.0)
+                        .strong()
+                        .color(pal.text_muted),
+                );
+                ui.label(
+                    egui::RichText::new(self.active_accent.label().to_uppercase())
+                        .size(10.0)
+                        .strong()
+                        .color(pal.accent),
+                );
+            });
+            ui.add_space(2.0);
+            ui.horizontal_wrapped(|ui| {
+                for &acc in UiAccentId::all() {
+                    let selected = self.active_accent == acc;
+                    let preview_color = match acc.rgb(pal.is_dark) {
+                        Some((r, g, b)) => egui::Color32::from_rgb(r, g, b),
+                        None => ThemePalette::for_theme(self.active_theme).accent,
+                    };
+                    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(26.0), egui::Sense::click());
+                    let painter = ui.painter_at(rect);
+                    let center = rect.center();
+                    if selected {
+                        painter.circle_stroke(center, 12.0, Stroke::new(2.0_f32, pal.text_primary));
+                    } else {
+                        painter.circle_stroke(center, 11.5, Stroke::new(1.0_f32, pal.border));
+                    }
+                    painter.circle_filled(center, 8.5, preview_color);
+                    if acc == UiAccentId::Auto {
+                        painter.text(
+                            center,
+                            egui::Align2::CENTER_CENTER,
+                            "T",
+                            egui::FontId::monospace(9.5),
+                            egui::Color32::WHITE,
+                        );
+                    }
+                    let clicked = resp.on_hover_text(acc.label()).clicked();
+                    if clicked && !selected {
+                        self.active_accent = acc;
+                        apply_theme(ctx, self.active_theme, acc);
+                        let _ = save_ui_settings(&UiSettings {
+                            theme: self.active_theme,
+                            accent: acc,
+                        });
+                        self.set_status(
+                            format!("COLOR DE RESALTADO: {}", acc.label().to_uppercase()),
+                            false,
+                        );
                     }
                 }
             });

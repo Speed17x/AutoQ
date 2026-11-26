@@ -39,6 +39,7 @@ data class PersistedAppState(
     val btSavedBandsByKey: Map<String, List<FilterBand>> = emptyMap(),
     val customPresets: List<EqPreset> = emptyList(),
     val themeId: String = "pure_hyper",
+    val accentId: String = "auto",
 )
 
 class AppPreferencesStore(context: Context) {
