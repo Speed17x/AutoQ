@@ -4,6 +4,19 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [2.1.1] — 2026-11-26
+
+### Añadido / Cambiado
+- **Sistema de temas modulares con paridad total (Escritorio `autoq-gui` + Android)**:
+  - **Android / HyperOS** (`PureHyper`, tema principal por defecto): estética limpia con acento azul (`#3482FF` / `#2563EB`), cuadrícula continua en el gráfico EQ y tarjetas sobrias.
+  - **HyperOS Claro** (`PureLight`): variante clara modular con alto contraste.
+  - **Nothing OS** (`NothingOs`): conservado como tema opcional seleccionable (fondo mate `#0B0C0E`, cabeceras y cuadrícula dot-matrix, acento `#D71921`).
+  - Selector de tema persistente en la pestaña *Avanzado* (`crates/autoq-core/src/config.rs`, `autoq-gui` y `AppPreferencesStore` / `AdvancedScreen` en Android).
+- **Tipografía Consolas / Inconsolata**:
+  - Integración de fuente monoespaciada Consolas (`consolas_regular.ttf`, `consolas_bold.ttf` en Android; `Inconsolata-Regular.ttf` en `autoq-gui`) para valores numéricos, frecuencias, ganancia/Q y diagnósticos.
+
+---
+
 ## [2.1.0] — 2026-11-26
 
 ### Añadido

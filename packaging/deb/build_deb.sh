@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION="${1:-2.1.0}"
+VERSION="${1:-2.1.1}"
 VERSION="${VERSION#v}"
 ARCH="amd64"
 PKG_NAME="autoq_${VERSION}_${ARCH}"
