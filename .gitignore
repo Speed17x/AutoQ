@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# C / Native binaries
+linux-kde/moondrop_poll
+*.o
+*.so
+
+# Android / Gradle
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*~

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- KTMicro / Moondrop USB DSP (VID 0x31B2 = 12722: Chu 2 DSP, May, Quark 2, Jiu, CDSP) -->
+    <usb-device vendor-id="12722" />
+</resources>

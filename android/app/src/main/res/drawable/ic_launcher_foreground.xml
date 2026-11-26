@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle Nothing outer dot ring -->
+    <path
+        android:pathData="M54,22 A32,32 0 1,1 53.99,22"
+        android:strokeColor="#3A3D45"
+        android:strokeWidth="1.5" />
+    <!-- 8-point geometric star rays -->
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M54,25 L56.2,44 L54,48 L51.8,44 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M54,83 L56.2,64 L54,60 L51.8,64 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M25,54 L44,51.8 L48,54 L44,56.2 Z" />
+    <path
+        android:fillColor="#F5F5F5"
+        android:pathData="M83,54 L64,51.8 L60,54 L64,56.2 Z" />
+    <path
+        android:fillColor="#9EA2AC"
+        android:pathData="M34,34 L48,45 L46,48 L34,34 Z" />
+    <path
+        android:fillColor="#9EA2AC"
+        android:pathData="M74,34 L60,45 L62,48 L74,34 Z" />
+    <path
+        android:fillColor="#9EA2AC"
+        android:pathData="M34,74 L48,63 L46,60 L34,74 Z" />
+    <path
+        android:fillColor="#9EA2AC"
+        android:pathData="M74,74 L60,63 L62,60 L74,74 Z" />
+    <!-- Nothing Red core dot -->
+    <path
+        android:fillColor="#D71921"
+        android:pathData="M54,46 A8,8 0 1,1 53.99,46 Z" />
+</vector>

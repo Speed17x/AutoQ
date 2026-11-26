@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AutoQ</string>
+    <string name="widget_name">AutoQ · Nothing</string>
+    <string name="widget_description">Control rápido y curva EQ estilo Nothing OS con AutoEQ para cualquier audífono Bluetooth, USB-C o cableado.</string>
+</resources>

@@ -1,0 +1,32 @@
+// ============================================================================
+// Módulo opcional de Waybar para AutoQ (estilo Nothing OS)
+// ============================================================================
+// 1. Agrega "custom/autoq" en "modules-right" de ~/.config/waybar/config.jsonc
+// 2. Pega este bloque dentro de ~/.config/waybar/config.jsonc:
+{
+  "custom/autoq": {
+    "exec": "~/.local/bin/autoq-widget --status-waybar",
+    "return-type": "json",
+    "interval": 6,
+    "on-click": "~/.local/bin/autoq-widget --toggle",
+    "on-click-right": "~/.local/bin/autoq-widget --full"
+  }
+}
+
+// 3. Estilo opcional para ~/.config/waybar/style.css:
+// #custom-autoq {
+//     background-color: #141517;
+//     color: #F5F5F5;
+//     border: 1px solid #2B2E36;
+//     border-radius: 14px;
+//     padding: 0 10px;
+//     margin: 0 4px;
+//     font-family: "JetBrains Mono", monospace;
+//     font-size: 11px;
+// }
+// #custom-autoq.active {
+//     border-color: #D71921;
+// }
+// #custom-autoq.bypass, #custom-autoq.offline {
+//     color: #8E929B;
+// }
