@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,21 +51,15 @@ import com.hector.moondropdsp.ui.components.NothingPillChip
 import com.hector.moondropdsp.ui.components.NothingPrimaryButton
 import com.hector.moondropdsp.ui.components.NothingSectionLabel
 import com.hector.moondropdsp.ui.components.NothingStatusDot
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingBorderStrong
-import com.hector.moondropdsp.ui.theme.NothingEmerald
-import com.hector.moondropdsp.ui.theme.NothingGraphBg
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSubtle
-import com.hector.moondropdsp.ui.theme.NothingSurface
-import com.hector.moondropdsp.ui.theme.NothingSurfaceHigh
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.AppThemeId
+import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import com.hector.moondropdsp.widget.NothingEqWidgetProvider
 
 @Composable
 fun AdvancedScreen(
     state: MoondropUiState,
+    onSelectTheme: (AppThemeId) -> Unit = {},
     onApplyPreset: (EqPreset) -> Unit,
     onSavePreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
@@ -83,6 +76,7 @@ fun AdvancedScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val t = LocalAutoQTheme.current
     var newPresetName by remember { mutableStateOf("") }
     var showImportDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
@@ -99,19 +93,64 @@ fun AdvancedScreen(
             DotMatrixText(text = "AVANZADO", dotSize = 2.4.dp, dotGap = 1.0.dp)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "PRESETS · WIDGET NOTHING OS · BLUETOOTH DSP · DIAGNÓSTICO",
-                color = NothingMuted,
+                text = "TEMAS · PRESETS · WIDGET · BLUETOOTH DSP · DIAGNÓSTICO",
+                color = t.textMuted,
                 style = MaterialTheme.typography.labelSmall,
             )
         }
 
-        // 1. Nothing OS Widget Pinning Card
+        // 0. Modular Theme Picker
         NothingCard {
-            NothingSectionLabel(text = "Widget de escritorio (Nothing OS)", trailing = "4×2 · Redimensionable")
+            NothingSectionLabel(
+                text = "Apariencia y Temas",
+                trailing = state.themeId.label,
+            )
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AppThemeId.entries.forEach { option ->
+                    val selected = option == state.themeId
+                    val itemShape = RoundedCornerShape((t.cardRadiusDp - 4).coerceAtLeast(10).dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(itemShape)
+                            .background(if (selected) t.surfaceHigh else t.insetBg)
+                            .border(
+                                width = 1.dp,
+                                color = if (selected) t.accent else t.border,
+                                shape = itemShape,
+                            )
+                            .clickable { onSelectTheme(option) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = option.label,
+                                color = if (selected) t.textPrimary else t.textMuted,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            Text(
+                                text = option.subtitle,
+                                color = t.textSubtle,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                        NothingStatusDot(active = selected, size = 8.dp)
+                    }
+                }
+            }
+        }
+
+        // 1. Desktop Widget Pinning Card
+        NothingCard {
+            NothingSectionLabel(text = "Widget de escritorio", trailing = "4×2 · Redimensionable")
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Control rápido con tipografía dot-matrix, gráfica en vivo, botón ON/OFF y cambio directo entre tus presets guardados.",
-                color = NothingMuted,
+                text = "Control rápido en pantalla de inicio con gráfica en vivo, botón ON/OFF y cambio directo entre presets guardados.",
+                color = t.textMuted,
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.height(10.dp))
@@ -126,7 +165,7 @@ fun AdvancedScreen(
                     } else {
                         Toast.makeText(
                             context,
-                            "Añade 'AutoQ · Nothing' manteniendo pulsada la pantalla de inicio.",
+                            "Añade el widget de AutoQ manteniendo pulsada la pantalla de inicio.",
                             Toast.LENGTH_LONG,
                         ).show()
                     }
@@ -151,8 +190,8 @@ fun AdvancedScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (active) NothingSurfaceHigh else NothingGraphBg)
-                            .border(1.dp, if (active) NothingRed else NothingBorder, RoundedCornerShape(14.dp))
+                            .background(if (active) t.surfaceHigh else t.insetBg)
+                            .border(1.dp, if (active) t.accent else t.border, RoundedCornerShape(14.dp))
                             .clickable { onApplyPreset(preset) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -166,7 +205,7 @@ fun AdvancedScreen(
                             NothingStatusDot(active = active, size = 7.dp)
                             Text(
                                 text = preset.name,
-                                color = if (active) NothingWhite else NothingMuted,
+                                color = if (active) t.textPrimary else t.textMuted,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                                 maxLines = 1,
@@ -176,7 +215,7 @@ fun AdvancedScreen(
                         if (!preset.builtIn) {
                             Text(
                                 text = "ELIMINAR",
-                                color = NothingRed,
+                                color = t.accent,
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier
                                     .clickable { onDeletePreset(preset.name) }
@@ -185,7 +224,7 @@ fun AdvancedScreen(
                         } else {
                             Text(
                                 text = "BASE",
-                                color = NothingSubtle,
+                                color = t.textSubtle,
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         }
@@ -202,17 +241,17 @@ fun AdvancedScreen(
                 OutlinedTextField(
                     value = newPresetName,
                     onValueChange = { newPresetName = it },
-                    placeholder = { Text("Nombre del nuevo preset...", color = NothingSubtle, fontSize = 13.sp) },
+                    placeholder = { Text("Nombre del nuevo preset...", color = t.textSubtle, fontSize = 13.sp) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NothingRed,
-                        unfocusedBorderColor = NothingBorderStrong,
-                        focusedTextColor = NothingWhite,
-                        unfocusedTextColor = NothingWhite,
-                        focusedContainerColor = NothingGraphBg,
-                        unfocusedContainerColor = NothingGraphBg,
+                        focusedBorderColor = t.accent,
+                        unfocusedBorderColor = t.borderStrong,
+                        focusedTextColor = t.textPrimary,
+                        unfocusedTextColor = t.textPrimary,
+                        focusedContainerColor = t.insetBg,
+                        unfocusedContainerColor = t.insetBg,
                     ),
                 )
                 NothingPrimaryButton(
@@ -260,7 +299,7 @@ fun AdvancedScreen(
 
             state.btServiceError?.let { err ->
                 Spacer(Modifier.height(6.dp))
-                Text(text = err, color = NothingRed, style = MaterialTheme.typography.labelSmall)
+                Text(text = err, color = t.accent, style = MaterialTheme.typography.labelSmall)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -350,8 +389,8 @@ fun AdvancedScreen(
             if (state.usbDiagnostics.isEmpty()) {
                 Text(
                     text = "USB Host: sin dispositivos USB-C conectados.",
-                    color = NothingSubtle,
-                    fontFamily = FontFamily.Monospace,
+                    color = t.textSubtle,
+                    fontFamily = ConsolasFontFamily,
                     fontSize = 11.sp,
                 )
             } else {
@@ -359,8 +398,8 @@ fun AdvancedScreen(
                     Text(
                         text = "• ${u.productName} [${u.vidPid}] · HID=${u.hasHidInterface} · Perm=${u.hasPermission}" +
                             (u.recognizedAs?.let { " → $it" } ?: ""),
-                        color = if (u.recognizedAs != null) NothingEmerald else NothingMuted,
-                        fontFamily = FontFamily.Monospace,
+                        color = if (u.recognizedAs != null) t.emerald else t.textMuted,
+                        fontFamily = ConsolasFontFamily,
                         fontSize = 11.sp,
                     )
                 }
@@ -370,16 +409,16 @@ fun AdvancedScreen(
             if (state.audioOutputDiagnostics.isEmpty()) {
                 Text(
                     text = "Salidas externas: solo altavoz interno.",
-                    color = NothingSubtle,
-                    fontFamily = FontFamily.Monospace,
+                    color = t.textSubtle,
+                    fontFamily = ConsolasFontFamily,
                     fontSize = 11.sp,
                 )
             } else {
                 state.audioOutputDiagnostics.forEach { out ->
                     Text(
                         text = "• Audio: $out",
-                        color = NothingMuted,
-                        fontFamily = FontFamily.Monospace,
+                        color = t.textMuted,
+                        fontFamily = ConsolasFontFamily,
                         fontSize = 11.sp,
                     )
                 }
@@ -388,8 +427,8 @@ fun AdvancedScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "Protocolos USB DSP (v2.1.0): KTMicro 5B · Moondrop 8B · WalkPlay · FiiO 5/10B · Qudelix-5K · Topping · Fosi DS3 · JDS Element IV",
-                color = NothingSubtle,
-                fontFamily = FontFamily.Monospace,
+                color = t.textSubtle,
+                fontFamily = ConsolasFontFamily,
                 fontSize = 10.sp,
             )
 
@@ -403,8 +442,8 @@ fun AdvancedScreen(
 
         Text(
             text = "> ${state.statusMessage}",
-            color = if (state.statusError) NothingRed else NothingMuted,
-            fontFamily = FontFamily.Monospace,
+            color = if (state.statusError) t.accent else t.textMuted,
+            fontFamily = ConsolasFontFamily,
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
@@ -414,9 +453,9 @@ fun AdvancedScreen(
     if (showImportDialog) {
         AlertDialog(
             onDismissRequest = { showImportDialog = false },
-            containerColor = NothingSurface,
-            titleContentColor = NothingWhite,
-            title = { Text("Importar ParametricEQ", fontFamily = FontFamily.Monospace) },
+            containerColor = t.surface,
+            titleContentColor = t.textPrimary,
+            title = { Text("Importar ParametricEQ", fontFamily = ConsolasFontFamily) },
             text = {
                 OutlinedTextField(
                     value = importText,
@@ -424,18 +463,18 @@ fun AdvancedScreen(
                     placeholder = {
                         Text(
                             "Filter 1: ON PK Fc 105 Hz Gain 3.2 dB Q 0.707",
-                            color = NothingSubtle,
-                            fontFamily = FontFamily.Monospace,
+                            color = t.textSubtle,
+                            fontFamily = ConsolasFontFamily,
                             fontSize = 11.sp,
                         )
                     },
                     minLines = 5,
                     maxLines = 8,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NothingRed,
-                        unfocusedBorderColor = NothingBorderStrong,
-                        focusedTextColor = NothingWhite,
-                        unfocusedTextColor = NothingWhite,
+                        focusedBorderColor = t.accent,
+                        unfocusedBorderColor = t.borderStrong,
+                        focusedTextColor = t.textPrimary,
+                        unfocusedTextColor = t.textPrimary,
                     ),
                 )
             },
@@ -447,12 +486,12 @@ fun AdvancedScreen(
                         importText = ""
                     },
                 ) {
-                    Text("IMPORTAR", color = NothingRed, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    Text("IMPORTAR", color = t.accent, fontFamily = ConsolasFontFamily, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
-                    Text("CANCELAR", color = NothingMuted, fontFamily = FontFamily.Monospace)
+                    Text("CANCELAR", color = t.textMuted, fontFamily = ConsolasFontFamily)
                 }
             },
         )
@@ -466,24 +505,25 @@ private fun ToggleSettingRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val t = LocalAutoQTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
-            Text(text = title, color = NothingWhite, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            Text(text = subtitle, color = NothingSubtle, style = MaterialTheme.typography.labelSmall)
+            Text(text = title, color = t.textPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(text = subtitle, color = t.textSubtle, style = MaterialTheme.typography.labelSmall)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = NothingWhite,
-                checkedTrackColor = NothingRed,
-                uncheckedThumbColor = NothingMuted,
-                uncheckedTrackColor = NothingSurfaceHigh,
-                uncheckedBorderColor = NothingBorderStrong,
+                checkedThumbColor = t.textOnAccent,
+                checkedTrackColor = t.accent,
+                uncheckedThumbColor = t.textMuted,
+                uncheckedTrackColor = t.surfaceHigh,
+                uncheckedBorderColor = t.borderStrong,
             ),
         )
     }

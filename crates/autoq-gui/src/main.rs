@@ -24,8 +24,9 @@ use autoq_core::biquad::{
     fit_band_count, flat_bands, FilterBand, FilterType, MAX_FREQ_HZ, MAX_Q, MIN_FREQ_HZ, MIN_Q,
 };
 use autoq_core::config::{
-    load_daemon_config, load_presets, remove_device_rule, save_daemon_config, save_presets,
-    upsert_device_rule, DaemonConfig, DEFAULT_VIRTUAL_BANDS,
+    load_daemon_config, load_presets, load_ui_settings, remove_device_rule, save_daemon_config,
+    save_presets, save_ui_settings, upsert_device_rule, DaemonConfig, UiSettings, UiThemeId,
+    DEFAULT_VIRTUAL_BANDS,
 };
 use autoq_core::hid::{self, MoondropDeviceInfo};
 use autoq_core::platform_linux::{self, PipeWireAudioDevice, PW_SINK_NAME};
@@ -38,9 +39,8 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 use theme::{
-    apply_nothing_theme, band_card, circle_icon_btn, draw_dot_matrix, inset_list_frame,
-    nothing_slider, outline_pill, red_pill, section_label, segment_tab, sub_card_frame, BORDER,
-    INSET_BG, MUTED_GRAY, NOTHING_RED, OBSIDIAN, PURE_WHITE, SURFACE_PILL,
+    apply_theme, band_card, circle_icon_btn, draw_brand_title, inset_list_frame, nothing_slider,
+    outline_pill, palette, red_pill, section_label, segment_tab, sub_card_frame,
 };
 
 const BRAND_CHIPS: &[(&str, &str)] = &[
@@ -308,6 +308,7 @@ struct AutoQApp {
 
     daemon_cfg: DaemonConfig,
     daemon_active: bool,
+    active_theme: UiThemeId,
 
     status_text: String,
     status_error: bool,
@@ -315,7 +316,8 @@ struct AutoQApp {
 
 impl AutoQApp {
     fn new(cc: &eframe::CreationContext<'_>, start_full: bool, ipc_rx: Receiver<String>) -> Self {
-        apply_nothing_theme(&cc.egui_ctx);
+        let active_theme = load_ui_settings().theme;
+        apply_theme(&cc.egui_ctx, active_theme);
         let (bg_tx, bg_rx) = mpsc::channel();
         let presets = load_presets();
         let selected_preset = presets
@@ -366,6 +368,7 @@ impl AutoQApp {
             apo_text: String::new(),
             daemon_cfg: load_daemon_config(),
             daemon_active: ipc::is_daemon_service_active(),
+            active_theme,
             status_text: "INICIANDO MOTOR RUST...".to_string(),
             status_error: false,
         };
@@ -967,6 +970,7 @@ impl AutoQApp {
     }
 
     fn render_compact_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let pal = palette();
         // Header: ● SHORT_TITLE  [BADGE]  [ON]
         ui.horizontal(|ui| {
             let dot_title = self
@@ -974,7 +978,7 @@ impl AutoQApp {
                 .map(RuntimeDevice::short_dot_title)
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "AUTOQ".to_string());
-            draw_dot_matrix(ui, &dot_title, 2.3, PURE_WHITE, true);
+            draw_brand_title(ui, &dot_title, 2.3, true);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let on_lbl = if self.dsp_enabled { "ON" } else { "OFF" };
@@ -990,8 +994,8 @@ impl AutoQApp {
 
                 if let Some(dev) = self.active_device() {
                     egui::Frame::NONE
-                        .fill(SURFACE_PILL)
-                        .stroke(Stroke::new(1.0_f32, BORDER))
+                        .fill(pal.surface_pill)
+                        .stroke(Stroke::new(1.0_f32, pal.border))
                         .corner_radius(CornerRadius::same(13))
                         .inner_margin(egui::Margin::symmetric(10, 5))
                         .show(ui, |ui| {
@@ -1000,7 +1004,7 @@ impl AutoQApp {
                                     .size(9.5)
                                     .strong()
                                     .monospace()
-                                    .color(MUTED_GRAY),
+                                    .color(pal.text_muted),
                             );
                         });
                 }
@@ -1047,8 +1051,8 @@ impl AutoQApp {
             painter.rect(
                 pill_rect,
                 CornerRadius::same(15),
-                INSET_BG,
-                Stroke::new(1.0_f32, BORDER),
+                pal.inset_bg,
+                Stroke::new(1.0_f32, pal.border),
                 StrokeKind::Inside,
             );
             painter.text(
@@ -1056,7 +1060,7 @@ impl AutoQApp {
                 egui::Align2::CENTER_CENTER,
                 &self.selected_preset,
                 egui::FontId::monospace(11.0),
-                PURE_WHITE,
+                pal.text_primary,
             );
 
             if circle_icon_btn(ui, ">", 30.0).clicked() {
@@ -1070,9 +1074,10 @@ impl AutoQApp {
     }
 
     fn render_full_app(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let pal = palette();
         // ── Top Header: ● AUTOQ  [Device Dropdown]  [ON]  (▾)  (×) ──
         ui.horizontal(|ui| {
-            draw_dot_matrix(ui, "AUTOQ", 2.5, PURE_WHITE, true);
+            draw_brand_title(ui, "AUTOQ", 2.5, true);
 
             let right_controls_w = 46.0 + 26.0 + 26.0 + 28.0;
             let combo_w = (ui.available_width() - right_controls_w).max(115.0);
@@ -1096,7 +1101,7 @@ impl AutoQApp {
                     egui::RichText::new(cur_label)
                         .size(10.5)
                         .monospace()
-                        .color(PURE_WHITE),
+                        .color(pal.text_primary),
                 )
                 .show_ui(ui, |ui| {
                     for (i, d) in self.devices.iter().enumerate() {
@@ -1140,10 +1145,10 @@ impl AutoQApp {
 
         ui.add_space(4.0);
 
-        // ── 3-Tab Nothing OS Segmented Pill Bar ──
+        // ── 3-Tab Modular Segmented Pill Bar ──
         egui::Frame::NONE
-            .fill(INSET_BG)
-            .stroke(Stroke::new(1.0_f32, BORDER))
+            .fill(pal.inset_bg)
+            .stroke(Stroke::new(1.0_f32, pal.border))
             .corner_radius(CornerRadius::same(18))
             .inner_margin(egui::Margin::same(4))
             .show(ui, |ui| {
@@ -1387,7 +1392,7 @@ impl AutoQApp {
                 .and_then(|i| self.catalog.get(i))
                 .map(|e| format!("TU AUDÍFONO: {} [{}]", e.name, e.source_rig))
                 .unwrap_or_else(|| "TU AUDÍFONO: (Ninguno seleccionado)".to_string());
-            ui.label(egui::RichText::new(cur_src_lbl).size(11.0).strong().color(PURE_WHITE));
+            ui.label(egui::RichText::new(cur_src_lbl).size(11.0).strong().color(palette().text_primary));
 
             ui.add(
                 egui::TextEdit::singleline(&mut self.src_query)
@@ -1490,7 +1495,7 @@ impl AutoQApp {
                     .and_then(|i| self.catalog.get(i))
                     .map(|e| format!("{} [{}]", e.name, e.source_rig))
                     .unwrap_or_else(|| "Elige el modelo que deseas imitar".to_string());
-                ui.label(egui::RichText::new(cur_tgt_lbl).size(11.0).color(PURE_WHITE));
+                ui.label(egui::RichText::new(cur_tgt_lbl).size(11.0).color(palette().text_primary));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.match_query)
                         .hint_text("Buscar audífono a imitar (ej. 7Hz Zero 3, Blessing 3)...")
@@ -1560,12 +1565,34 @@ impl AutoQApp {
                 egui::RichText::new(&self.autoq_summary)
                     .size(10.5)
                     .strong()
-                    .color(PURE_WHITE),
+                    .color(palette().text_primary),
             );
         }
     }
 
     fn render_advanced_tab(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let pal = palette();
+        // ── Modular Theme Selector Card ──
+        sub_card_frame().show(ui, |ui| {
+            section_label(ui, "APARIENCIA Y TEMAS (MODULAR)");
+            let third_w = ((ui.available_width() - 14.0) / 3.0).max(85.0);
+            ui.horizontal(|ui| {
+                for &tid in UiThemeId::all() {
+                    let active = self.active_theme == tid;
+                    if outline_pill(ui, tid.label(), active, Vec2::new(third_w, 28.0)).clicked()
+                        && !active
+                    {
+                        self.active_theme = tid;
+                        apply_theme(ctx, tid);
+                        let _ = save_ui_settings(&UiSettings { theme: tid });
+                        self.set_status(format!("TEMA CAMBIADO A: {}", tid.label().to_uppercase()), false);
+                    }
+                }
+            });
+        });
+
+        ui.add_space(6.0);
+
         // ── Presets Card ──
         sub_card_frame().show(ui, |ui| {
             section_label(ui, "PRESETS UNIVERSALES (SINCRONIZADOS CON WIDGET)");
@@ -1789,7 +1816,7 @@ impl AutoQApp {
                     } else {
                         "Servicio: INACTIVO"
                     };
-                    let st_col = if self.daemon_active { PURE_WHITE } else { MUTED_GRAY };
+                    let st_col = if self.daemon_active { pal.text_primary } else { pal.text_muted };
                     ui.label(egui::RichText::new(st_txt).size(10.5).monospace().color(st_col));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let toggle_lbl = if self.daemon_active {
@@ -1868,7 +1895,7 @@ impl AutoQApp {
                             ))
                             .size(10.0)
                             .monospace()
-                            .color(PURE_WHITE),
+                            .color(pal.text_primary),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if circle_icon_btn(ui, "×", 20.0).clicked() {
@@ -1912,7 +1939,7 @@ impl AutoQApp {
                 egui::RichText::new(diag)
                     .size(10.0)
                     .monospace()
-                    .color(MUTED_GRAY),
+                    .color(pal.text_muted),
             );
         });
     }
@@ -1920,18 +1947,19 @@ impl AutoQApp {
 
 impl eframe::App for AutoQApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let pal = palette();
         self.poll_channels(ctx);
 
         if self.full_mode {
             egui::TopBottomPanel::bottom("telemetry_footer")
                 .frame(
                     egui::Frame::NONE
-                        .fill(OBSIDIAN)
-                        .stroke(Stroke::new(1.0_f32, BORDER))
+                        .fill(pal.bg)
+                        .stroke(Stroke::new(1.0_f32, pal.border))
                         .inner_margin(egui::Margin::symmetric(12, 6)),
                 )
                 .show(ctx, |ui| {
-                    let col = if self.status_error { NOTHING_RED } else { MUTED_GRAY };
+                    let col = if self.status_error { pal.accent } else { pal.text_muted };
                     let prefix = if self.busy { "● " } else { "> " };
                     ui.label(
                         egui::RichText::new(format!("{prefix}{}", self.status_text))
@@ -1945,7 +1973,7 @@ impl eframe::App for AutoQApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
-                    .fill(OBSIDIAN)
+                    .fill(pal.bg)
                     .inner_margin(egui::Margin::symmetric(12, 10)),
             )
             .show(ctx, |ui| {
@@ -2042,7 +2070,7 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("AutoQ — Universal Parametric EQ (Rust)")
+            .with_title("AutoQ — Parametric EQ")
             .with_app_id("autoq-gui")
             .with_inner_size(init_size)
             .with_min_inner_size([360.0, 230.0]),

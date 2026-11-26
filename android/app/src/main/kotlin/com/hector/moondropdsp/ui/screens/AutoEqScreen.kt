@@ -28,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,16 +42,8 @@ import com.hector.moondropdsp.ui.components.NothingOutlineButton
 import com.hector.moondropdsp.ui.components.NothingPillChip
 import com.hector.moondropdsp.ui.components.NothingPrimaryButton
 import com.hector.moondropdsp.ui.components.NothingSectionLabel
-import com.hector.moondropdsp.ui.theme.NothingAmber
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingBorderStrong
-import com.hector.moondropdsp.ui.theme.NothingEmerald
-import com.hector.moondropdsp.ui.theme.NothingGraphBg
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSubtle
-import com.hector.moondropdsp.ui.theme.NothingSurfaceHigh
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import java.util.Locale
 
 @Composable
@@ -73,6 +64,7 @@ fun AutoEqScreen(
     LaunchedEffect(Unit) {
         onLoadIndex(false)
     }
+    val t = LocalAutoQTheme.current
 
     Column(
         modifier = modifier
@@ -99,7 +91,7 @@ fun AutoEqScreen(
                         } else {
                             "BASE UNIVERSAL AUTOEQ + SQUIGLINK (IEM · TWS · OVER-EAR)"
                         },
-                        color = NothingMuted,
+                        color = t.textMuted,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -122,7 +114,7 @@ fun AutoEqScreen(
             state.selectedSourceEntry?.let { sel ->
                 Text(
                     text = "SELECCIONADO: ${sel.label}",
-                    color = NothingEmerald,
+                    color = t.emerald,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -136,7 +128,7 @@ fun AutoEqScreen(
                 placeholder = {
                     Text(
                         "Buscar tu audífono (Sony, Huawei, Nothing, Moondrop, KZ...)",
-                        color = NothingSubtle,
+                        color = t.textSubtle,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 },
@@ -144,12 +136,12 @@ fun AutoEqScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = NothingRed,
-                    unfocusedBorderColor = NothingBorderStrong,
-                    focusedTextColor = NothingWhite,
-                    unfocusedTextColor = NothingWhite,
-                    focusedContainerColor = NothingGraphBg,
-                    unfocusedContainerColor = NothingGraphBg,
+                    focusedBorderColor = t.accent,
+                    unfocusedBorderColor = t.borderStrong,
+                    focusedTextColor = t.textPrimary,
+                    unfocusedTextColor = t.textPrimary,
+                    focusedContainerColor = t.insetBg,
+                    unfocusedContainerColor = t.insetBg,
                 ),
             )
 
@@ -191,8 +183,8 @@ fun AutoEqScreen(
                     .fillMaxWidth()
                     .height(175.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(NothingGraphBg)
-                    .border(1.dp, NothingBorder, RoundedCornerShape(14.dp)),
+                    .background(t.insetBg)
+                    .border(1.dp, t.border, RoundedCornerShape(14.dp)),
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.sourceSearchResults, key = { "src:${it.uniqueKey}" }) { entry ->
@@ -200,13 +192,13 @@ fun AutoEqScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(if (isSel) NothingSurfaceHigh else NothingGraphBg)
+                                .background(if (isSel) t.surfaceHigh else t.insetBg)
                                 .clickable { onSelectSource(entry) }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             Text(
                                 text = entry.name,
-                                color = if (isSel) NothingRed else NothingWhite,
+                                color = if (isSel) t.accent else t.textPrimary,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                 maxLines = 1,
@@ -214,7 +206,7 @@ fun AutoEqScreen(
                             )
                             Text(
                                 text = "${entry.sourceRig} · ${entry.formFactor}",
-                                color = NothingSubtle,
+                                color = t.textSubtle,
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -260,8 +252,8 @@ fun AutoEqScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (selected) NothingSurfaceHigh else NothingGraphBg)
-                                .border(1.dp, if (selected) NothingRed else NothingBorder, RoundedCornerShape(14.dp))
+                                .background(if (selected) t.surfaceHigh else t.insetBg)
+                                .border(1.dp, if (selected) t.accent else t.border, RoundedCornerShape(14.dp))
                                 .clickable { onSelectTarget(idx) }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -269,7 +261,7 @@ fun AutoEqScreen(
                         ) {
                             Text(
                                 text = target.title,
-                                color = if (selected) NothingWhite else NothingMuted,
+                                color = if (selected) t.textPrimary else t.textMuted,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                 modifier = Modifier.weight(1f),
@@ -277,7 +269,7 @@ fun AutoEqScreen(
                             if (selected) {
                                 Text(
                                     text = "●",
-                                    color = NothingRed,
+                                    color = t.accent,
                                     fontSize = 12.sp,
                                 )
                             }
@@ -291,7 +283,7 @@ fun AutoEqScreen(
                     placeholder = {
                         Text(
                             "Buscar objetivo (Truthear Hexa, Blessing 3, HD 600, AirPods Pro...)",
-                            color = NothingSubtle,
+                            color = t.textSubtle,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     },
@@ -299,12 +291,12 @@ fun AutoEqScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NothingRed,
-                        unfocusedBorderColor = NothingBorderStrong,
-                        focusedTextColor = NothingWhite,
-                        unfocusedTextColor = NothingWhite,
-                        focusedContainerColor = NothingGraphBg,
-                        unfocusedContainerColor = NothingGraphBg,
+                        focusedBorderColor = t.accent,
+                        unfocusedBorderColor = t.borderStrong,
+                        focusedTextColor = t.textPrimary,
+                        unfocusedTextColor = t.textPrimary,
+                        focusedContainerColor = t.insetBg,
+                        unfocusedContainerColor = t.insetBg,
                     ),
                 )
 
@@ -313,7 +305,7 @@ fun AutoEqScreen(
                 state.selectedMatchEntry?.let { sel ->
                     Text(
                         text = "OBJETIVO: ${sel.label}",
-                        color = NothingEmerald,
+                        color = t.emerald,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(bottom = 6.dp),
                     )
@@ -324,8 +316,8 @@ fun AutoEqScreen(
                         .fillMaxWidth()
                         .height(190.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(NothingGraphBg)
-                        .border(1.dp, NothingBorder, RoundedCornerShape(14.dp)),
+                        .background(t.insetBg)
+                        .border(1.dp, t.border, RoundedCornerShape(14.dp)),
                 ) {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(state.searchResults, key = { "tgt:${it.uniqueKey}" }) { entry ->
@@ -333,13 +325,13 @@ fun AutoEqScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isSel) NothingSurfaceHigh else NothingGraphBg)
+                                    .background(if (isSel) t.surfaceHigh else t.insetBg)
                                     .clickable { onSelectMatchEntry(entry) }
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                             ) {
                                 Text(
                                     text = entry.name,
-                                    color = if (isSel) NothingRed else NothingWhite,
+                                    color = if (isSel) t.accent else t.textPrimary,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                     maxLines = 1,
@@ -347,7 +339,7 @@ fun AutoEqScreen(
                                 )
                                 Text(
                                     text = "${entry.sourceRig} · ${entry.formFactor}",
-                                    color = NothingSubtle,
+                                    color = t.textSubtle,
                                     style = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -391,7 +383,7 @@ fun AutoEqScreen(
                 )
                 if (state.autoEqComputing) {
                     CircularProgressIndicator(
-                        color = NothingRed,
+                        color = t.accent,
                         strokeWidth = 2.dp,
                         modifier = Modifier.height(24.dp),
                     )
@@ -401,7 +393,7 @@ fun AutoEqScreen(
 
         // Last Result Summary
         state.lastAutoEqResult?.let { res ->
-            NothingCard(borderColor = NothingBorderStrong) {
+            NothingCard(borderColor = t.borderStrong) {
                 NothingSectionLabel(
                     text = "Último ajuste aplicado",
                     trailing = "RMSE ${String.format(Locale.US, "%.2f", res.rmseDb)} dB",
@@ -409,14 +401,14 @@ fun AutoEqScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = res.targetLabel,
-                    color = NothingWhite,
+                    color = t.textPrimary,
                     style = MaterialTheme.typography.titleMedium,
                 )
                 res.warning?.let { warn ->
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = warn,
-                        color = NothingAmber,
+                        color = t.amber,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -425,15 +417,15 @@ fun AutoEqScreen(
                     text = "Ver curvas superpuestas en EQ →",
                     onClick = onNavigateToEq,
                     modifier = Modifier.fillMaxWidth(),
-                    accentText = NothingWhite,
+                    accentText = t.textPrimary,
                 )
             }
         }
 
         Text(
             text = "> ${state.statusMessage}",
-            color = if (state.statusError) NothingRed else NothingMuted,
-            fontFamily = FontFamily.Monospace,
+            color = if (state.statusError) t.accent else t.textMuted,
+            fontFamily = ConsolasFontFamily,
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 4.dp),
         )

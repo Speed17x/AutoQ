@@ -28,8 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,13 +46,8 @@ import com.hector.moondropdsp.ui.components.NothingPillChip
 import com.hector.moondropdsp.ui.components.NothingPrimaryButton
 import com.hector.moondropdsp.ui.components.NothingSectionLabel
 import com.hector.moondropdsp.ui.components.NothingStatusDot
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingBorderStrong
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSubtle
-import com.hector.moondropdsp.ui.theme.NothingSurfaceHigh
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.pow
@@ -82,6 +75,8 @@ fun EqScreen(
     val maxGain = dev?.maxGainDb ?: 12.0
     val allowShelves = dev?.supportsShelves ?: true
     val selectedBand = state.bands.getOrElse(state.selectedBandIdx) { FilterBand() }
+    val t = LocalAutoQTheme.current
+    val bandChipRadius = (t.cardRadiusDp - 2).coerceAtLeast(10).dp
 
     Column(
         modifier = modifier
@@ -90,7 +85,7 @@ fun EqScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 1. Device Status Card (Nothing OS style)
+        // 1. Device Status Card
         NothingCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -106,7 +101,7 @@ fun EqScreen(
                     Column {
                         DotMatrixText(
                             text = (dev?.shortWidgetName ?: "AUTOQ").take(14),
-                            color = if (dev != null) NothingWhite else NothingMuted,
+                            color = if (dev != null) t.textPrimary else t.textMuted,
                             dotSize = 2.4.dp,
                             dotGap = 1.0.dp,
                         )
@@ -117,7 +112,7 @@ fun EqScreen(
                             } else {
                                 "CONECTA CUALQUIER AUDÍFONO BT, USB-C O 3.5MM"
                             },
-                            color = NothingMuted,
+                            color = t.textMuted,
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -212,12 +207,12 @@ fun EqScreen(
                 val gainStr = String.format(Locale.US, "%+.1f", band.gain)
                 Column(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSel) NothingSurfaceHigh else Color(0xFF121316))
+                        .clip(RoundedCornerShape(bandChipRadius))
+                        .background(if (isSel) t.surfaceHigh else t.insetBg)
                         .border(
                             width = 1.dp,
-                            color = if (isSel) NothingRed else NothingBorder,
-                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSel) t.accent else t.border,
+                            shape = RoundedCornerShape(bandChipRadius),
                         )
                         .clickable { onSelectBand(idx) }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -225,18 +220,18 @@ fun EqScreen(
                 ) {
                     Text(
                         text = "B${idx + 1} · ${band.type.shortCode}",
-                        color = if (isSel) NothingRed else NothingSubtle,
+                        color = if (isSel) t.accent else t.textSubtle,
                         style = MaterialTheme.typography.labelSmall,
                     )
                     Text(
                         text = BiquadMath.formatFreq(band.frequency),
-                        color = NothingWhite,
+                        color = t.textPrimary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = "${gainStr}dB",
-                        color = if (band.gain != 0.0) NothingWhite else NothingMuted,
+                        color = if (band.gain != 0.0) t.textPrimary else t.textMuted,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -354,22 +349,22 @@ fun EqScreen(
                         checked = state.livePreview,
                         onCheckedChange = onToggleLive,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NothingWhite,
-                            checkedTrackColor = NothingRed,
-                            uncheckedThumbColor = NothingMuted,
-                            uncheckedTrackColor = NothingSurfaceHigh,
-                            uncheckedBorderColor = NothingBorderStrong,
+                            checkedThumbColor = t.textOnAccent,
+                            checkedTrackColor = t.accent,
+                            uncheckedThumbColor = t.textMuted,
+                            uncheckedTrackColor = t.surfaceHigh,
+                            uncheckedBorderColor = t.borderStrong,
                         ),
                     )
                     Column {
                         Text(
                             text = "LIVE",
-                            color = NothingWhite,
+                            color = t.textPrimary,
                             style = MaterialTheme.typography.labelLarge,
                         )
                         Text(
                             text = "Envío inmediato",
-                            color = NothingSubtle,
+                            color = t.textSubtle,
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }
@@ -403,8 +398,8 @@ fun EqScreen(
         // Status footer
         Text(
             text = "> ${state.statusMessage}",
-            color = if (state.statusError) NothingRed else NothingMuted,
-            fontFamily = FontFamily.Monospace,
+            color = if (state.statusError) t.accent else t.textMuted,
+            fontFamily = ConsolasFontFamily,
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         )
@@ -419,6 +414,7 @@ private fun SliderHeaderRow(
     onMinus: () -> Unit,
     onPlus: () -> Unit,
 ) {
+    val t = LocalAutoQTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -426,7 +422,7 @@ private fun SliderHeaderRow(
     ) {
         Text(
             text = label,
-            color = NothingMuted,
+            color = t.textMuted,
             style = MaterialTheme.typography.labelSmall,
             letterSpacing = 1.sp,
         )
@@ -437,7 +433,7 @@ private fun SliderHeaderRow(
             StepCircleButton("−", onMinus)
             Text(
                 text = valueText,
-                color = NothingWhite,
+                color = t.textPrimary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -448,11 +444,12 @@ private fun SliderHeaderRow(
 
 @Composable
 private fun StepCircleButton(symbol: String, onClick: () -> Unit) {
+    val t = LocalAutoQTheme.current
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(NothingSurfaceHigh)
-            .border(1.dp, NothingBorderStrong, CircleShape)
+            .background(t.surfaceHigh)
+            .border(1.dp, t.borderStrong, CircleShape)
             .clickable(onClick = onClick)
             .width(28.dp)
             .height(24.dp),
@@ -460,8 +457,8 @@ private fun StepCircleButton(symbol: String, onClick: () -> Unit) {
     ) {
         Text(
             text = symbol,
-            color = NothingWhite,
-            fontFamily = FontFamily.Monospace,
+            color = t.textPrimary,
+            fontFamily = ConsolasFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp,
         )
@@ -469,8 +466,10 @@ private fun StepCircleButton(symbol: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun nothingSliderColors() = SliderDefaults.colors(
-    thumbColor = NothingWhite,
-    activeTrackColor = NothingRed,
-    inactiveTrackColor = NothingBorderStrong,
-)
+private fun nothingSliderColors() = LocalAutoQTheme.current.let { t ->
+    SliderDefaults.colors(
+        thumbColor = t.accent,
+        activeTrackColor = t.accent,
+        inactiveTrackColor = t.borderStrong,
+    )
+}

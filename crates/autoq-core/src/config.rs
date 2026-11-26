@@ -103,6 +103,56 @@ pub fn daemon_profiles_file() -> PathBuf {
     config_dir().join("daemon_profiles.json")
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UiThemeId {
+    #[default]
+    PureHyper,
+    PureLight,
+    NothingOs,
+}
+
+impl UiThemeId {
+    pub fn all() -> &'static [UiThemeId] {
+        &[UiThemeId::PureHyper, UiThemeId::PureLight, UiThemeId::NothingOs]
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            UiThemeId::PureHyper => "Android / HyperOS",
+            UiThemeId::PureLight => "HyperOS Claro",
+            UiThemeId::NothingOs => "Nothing OS",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UiSettings {
+    #[serde(default)]
+    pub theme: UiThemeId,
+}
+
+pub fn ui_settings_file() -> PathBuf {
+    config_dir().join("ui_settings.json")
+}
+
+pub fn load_ui_settings() -> UiSettings {
+    let path = ui_settings_file();
+    if let Ok(txt) = fs::read_to_string(&path) {
+        if let Ok(s) = serde_json::from_str::<UiSettings>(&txt) {
+            return s;
+        }
+    }
+    UiSettings::default()
+}
+
+pub fn save_ui_settings(settings: &UiSettings) -> Result<(), String> {
+    let dir = config_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    fs::write(ui_settings_file(), json).map_err(|e| e.to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoProfileRule {
     pub match_pattern: String,
@@ -411,5 +461,18 @@ mod tests {
 
         assert!(remove_device_rule(&mut cfg, "152a:88fa"));
         assert!(match_rule_for_device(&cfg, "usb:/dev/ttyACM0", "JDS Labs Element IV", "152a:88fa").is_none());
+    }
+
+    #[test]
+    fn ui_theme_defaults_to_pure_hyper_and_serializes() {
+        let def = UiSettings::default();
+        assert_eq!(def.theme, UiThemeId::PureHyper);
+        let raw = serde_json::to_string(&UiSettings {
+            theme: UiThemeId::NothingOs,
+        })
+        .unwrap();
+        assert!(raw.contains("nothing_os"));
+        let decoded: UiSettings = serde_json::from_str(&raw).unwrap();
+        assert_eq!(decoded.theme, UiThemeId::NothingOs);
     }
 }

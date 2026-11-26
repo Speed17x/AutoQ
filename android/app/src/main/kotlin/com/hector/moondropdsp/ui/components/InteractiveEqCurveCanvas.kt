@@ -26,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -37,12 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.hector.moondropdsp.data.CurvePoint
 import com.hector.moondropdsp.dsp.BiquadMath
 import com.hector.moondropdsp.dsp.FilterBand
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingGraphBg
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSubtle
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import kotlin.math.hypot
 import kotlin.math.log10
 import kotlin.math.pow
@@ -137,13 +131,14 @@ fun InteractiveEqCurveCanvas(
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
 
     var draggingIdx by remember { mutableIntStateOf(-1) }
+    val theme = LocalAutoQTheme.current
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(NothingGraphBg)
-            .border(1.dp, NothingBorder, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(theme.cardRadiusDp.dp))
+            .background(theme.graphBg)
+            .border(1.dp, theme.border, RoundedCornerShape(theme.cardRadiusDp.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
     ) {
         Row(
@@ -156,27 +151,27 @@ fun InteractiveEqCurveCanvas(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = if (dspEnabled) "● LIVE" else "○ BYPASS",
-                    color = if (dspEnabled) NothingRed else NothingMuted,
+                    color = if (dspEnabled) theme.accent else theme.textMuted,
                     style = MaterialTheme.typography.labelSmall,
                 )
                 if (useFr) {
                     Text(
                         text = "╌ STOCK",
-                        color = NothingMuted,
+                        color = theme.textMuted,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
                 if (useFr && targetInterp != null) {
                     Text(
                         text = "┄ ${targetLabel.uppercase().take(16)}",
-                        color = NothingWhite.copy(alpha = 0.75f),
+                        color = theme.textPrimary.copy(alpha = 0.78f),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
             Text(
                 text = if (useFr) "±15dB · FR" else "±12dB · ΔEQ",
-                color = NothingSubtle,
+                color = theme.textSubtle,
                 style = MaterialTheme.typography.labelSmall,
             )
         }
@@ -335,17 +330,40 @@ fun InteractiveEqCurveCanvas(
                     return padT + (1f - t) * ph
                 }
 
-                // 1. Nothing OS Dot-Matrix Background Field
-                val cols = 20
-                val rows = 6
-                for (r in 0..rows) {
-                    val y = padT + (r.toFloat() / rows) * ph
+                // 1. Background Grid (dot-matrix for Nothing OS, clean lines for Android/HyperOS)
+                if (theme.useDotMatrixGrid) {
+                    val cols = 20
+                    val rows = 6
+                    for (r in 0..rows) {
+                        val y = padT + (r.toFloat() / rows) * ph
+                        for (c in 0..cols) {
+                            val x = padL + (c.toFloat() / cols) * pw
+                            drawCircle(
+                                color = theme.gridColor,
+                                radius = 1.6f,
+                                center = Offset(x, y),
+                            )
+                        }
+                    }
+                } else {
+                    val rows = 6
+                    for (r in 0..rows) {
+                        val y = padT + (r.toFloat() / rows) * ph
+                        drawLine(
+                            color = theme.gridColor,
+                            start = Offset(padL, y),
+                            end = Offset(padL + pw, y),
+                            strokeWidth = 1.0f,
+                        )
+                    }
+                    val cols = 6
                     for (c in 0..cols) {
                         val x = padL + (c.toFloat() / cols) * pw
-                        drawCircle(
-                            color = Color(0xFF282B33),
-                            radius = 1.6f,
-                            center = Offset(x, y),
+                        drawLine(
+                            color = theme.gridColor,
+                            start = Offset(x, padT),
+                            end = Offset(x, padT + ph),
+                            strokeWidth = 1.0f,
                         )
                     }
                 }
@@ -353,11 +371,11 @@ fun InteractiveEqCurveCanvas(
                 // 2. Center 0 dB hairline
                 val y0 = dbToY(0.0)
                 drawLine(
-                    color = Color(0xFF3A3E48),
+                    color = theme.zeroLineColor,
                     start = Offset(padL, y0),
                     end = Offset(padL + pw, y0),
                     strokeWidth = 1.4f,
-                    pathEffect = dashZero,
+                    pathEffect = if (theme.useDotMatrixGrid) dashZero else null,
                 )
 
                 // 3. Stock FR curve
@@ -370,7 +388,7 @@ fun InteractiveEqCurveCanvas(
                     }
                     drawPath(
                         path = stockPath,
-                        color = Color(0xFF6B707B),
+                        color = theme.stockLineColor,
                         style = Stroke(width = 2.2f, pathEffect = dashStock),
                     )
                 }
@@ -385,7 +403,7 @@ fun InteractiveEqCurveCanvas(
                     }
                     drawPath(
                         path = tgtPath,
-                        color = Color(0xBBE8ECF2),
+                        color = theme.targetLineColor,
                         style = Stroke(width = 2.0f, pathEffect = dashTarget),
                     )
                 }
@@ -401,7 +419,7 @@ fun InteractiveEqCurveCanvas(
                     }
                     drawPath(
                         path = selPath,
-                        color = NothingRed.copy(alpha = 0.28f),
+                        color = theme.accent.copy(alpha = 0.28f),
                         style = Stroke(width = 2.0f),
                     )
                 }
@@ -417,13 +435,13 @@ fun InteractiveEqCurveCanvas(
                 if (dspEnabled) {
                     drawPath(
                         path = livePath,
-                        color = NothingRed.copy(alpha = 0.25f),
+                        color = theme.accent.copy(alpha = 0.25f),
                         style = Stroke(width = 9f, cap = StrokeCap.Round, join = StrokeJoin.Round),
                     )
                 }
                 drawPath(
                     path = livePath,
-                    color = if (dspEnabled) NothingRed else NothingMuted,
+                    color = if (dspEnabled) theme.accent else theme.textMuted,
                     style = Stroke(width = 3.6f, cap = StrokeCap.Round, join = StrokeJoin.Round),
                 )
 
@@ -437,18 +455,18 @@ fun InteractiveEqCurveCanvas(
 
                     if (isSel) {
                         drawCircle(
-                            color = NothingRed.copy(alpha = 0.22f),
+                            color = theme.accent.copy(alpha = 0.22f),
                             radius = 18f,
                             center = Offset(bx, by),
                         )
                     }
                     drawCircle(
-                        color = if (isSel) NothingRed else NothingWhite,
+                        color = if (isSel) theme.accent else theme.graphBg,
                         radius = if (isSel) 9.5f else 6.0f,
                         center = Offset(bx, by),
                     )
                     drawCircle(
-                        color = if (isSel) NothingWhite else NothingRed,
+                        color = if (isSel) theme.textOnAccent else theme.accent,
                         radius = if (isSel) 9.5f else 6.0f,
                         center = Offset(bx, by),
                         style = Stroke(width = 2.2f),
@@ -466,7 +484,7 @@ fun InteractiveEqCurveCanvas(
             listOf("20", "60", "200", "1K", "4K", "16K").forEach { lbl ->
                 Text(
                     text = lbl,
-                    color = NothingSubtle,
+                    color = theme.textSubtle,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }

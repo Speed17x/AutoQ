@@ -29,30 +29,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingBorderStrong
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSubtle
-import com.hector.moondropdsp.ui.theme.NothingSurface
-import com.hector.moondropdsp.ui.theme.NothingSurfaceHigh
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import com.hector.moondropdsp.widget.NothingDotMatrixRenderer
 
 @Composable
 fun DotMatrixText(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = NothingWhite,
+    color: Color? = null,
     dotSize: Dp = 2.6.dp,
     dotGap: Dp = 1.1.dp,
 ) {
+    val t = LocalAutoQTheme.current
+    val resolvedColor = color ?: t.textPrimary
+    if (!t.useDotMatrixHeaders) {
+        Text(
+            text = text,
+            modifier = modifier,
+            color = resolvedColor,
+            fontFamily = ConsolasFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            letterSpacing = 0.6.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        return
+    }
+
     val clean = text.uppercase()
     val stepDp = dotSize + dotGap
     val charWidthDp = stepDp * 6.2f
@@ -72,7 +82,7 @@ fun DotMatrixText(
                 for (c in 0 until 5) {
                     if (row[c] == '#') {
                         drawCircle(
-                            color = color,
+                            color = resolvedColor,
                             radius = radiusPx,
                             center = Offset(x0 + c * stepPx, radiusPx + r * stepPx),
                         )
@@ -86,18 +96,22 @@ fun DotMatrixText(
 @Composable
 fun NothingCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 22.dp,
-    backgroundColor: Color = NothingSurface,
-    borderColor: Color = NothingBorder,
+    cornerRadius: Dp? = null,
+    backgroundColor: Color? = null,
+    borderColor: Color? = null,
     padding: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val t = LocalAutoQTheme.current
+    val rad = cornerRadius ?: t.cardRadiusDp.dp
+    val bg = backgroundColor ?: t.surface
+    val border = borderColor ?: t.border
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape(cornerRadius))
+            .clip(RoundedCornerShape(rad))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(rad))
             .padding(padding),
         content = content,
     )
@@ -111,17 +125,18 @@ fun NothingPillChip(
     modifier: Modifier = Modifier,
     accentRed: Boolean = true,
 ) {
+    val t = LocalAutoQTheme.current
     val bg = when {
-        selected && accentRed -> NothingRed
-        selected -> NothingWhite
-        else -> NothingSurfaceHigh
+        selected && accentRed -> t.accent
+        selected -> t.textPrimary
+        else -> t.surfaceHigh
     }
     val fg = when {
-        selected && accentRed -> NothingWhite
-        selected -> Color(0xFF0B0C0E)
-        else -> NothingMuted
+        selected && accentRed -> t.textOnAccent
+        selected -> t.background
+        else -> t.textMuted
     }
-    val border = if (selected) bg else NothingBorder
+    val border = if (selected) bg else t.border
 
     Box(
         modifier = modifier
@@ -151,25 +166,26 @@ fun NothingPrimaryButton(
     enabled: Boolean = true,
     accentRed: Boolean = true,
 ) {
+    val t = LocalAutoQTheme.current
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(42.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (accentRed) NothingRed else NothingWhite,
-            contentColor = if (accentRed) NothingWhite else Color(0xFF0B0C0E),
-            disabledContainerColor = NothingSurfaceHigh,
-            disabledContentColor = NothingSubtle,
+            containerColor = if (accentRed) t.accent else t.textPrimary,
+            contentColor = if (accentRed) t.textOnAccent else t.background,
+            disabledContainerColor = t.surfaceHigh,
+            disabledContentColor = t.textSubtle,
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
     ) {
         Text(
-            text = text.uppercase(),
-            fontFamily = FontFamily.Monospace,
+            text = if (t.useDotMatrixHeaders) text.uppercase() else text,
+            fontFamily = ConsolasFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
-            letterSpacing = 0.8.sp,
+            letterSpacing = 0.6.sp,
             maxLines = 1,
         )
     }
@@ -181,27 +197,28 @@ fun NothingOutlineButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    accentText: Color = NothingWhite,
+    accentText: Color? = null,
 ) {
+    val t = LocalAutoQTheme.current
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(42.dp),
         shape = CircleShape,
-        border = BorderStroke(1.dp, if (enabled) NothingBorderStrong else NothingBorder),
+        border = BorderStroke(1.dp, if (enabled) t.borderStrong else t.border),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = NothingSurfaceHigh,
-            contentColor = accentText,
-            disabledContentColor = NothingSubtle,
+            containerColor = t.surfaceHigh,
+            contentColor = accentText ?: t.textPrimary,
+            disabledContentColor = t.textSubtle,
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
     ) {
         Text(
-            text = text.uppercase(),
-            fontFamily = FontFamily.Monospace,
+            text = if (t.useDotMatrixHeaders) text.uppercase() else text,
+            fontFamily = ConsolasFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
-            letterSpacing = 0.8.sp,
+            letterSpacing = 0.6.sp,
             maxLines = 1,
         )
     }
@@ -209,16 +226,18 @@ fun NothingOutlineButton(
 
 @Composable
 fun NothingStatusDot(active: Boolean, size: Dp = 8.dp) {
+    val t = LocalAutoQTheme.current
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (active) NothingRed else NothingSubtle),
+            .background(if (active) t.accent else t.textSubtle),
     )
 }
 
 @Composable
 fun NothingSectionLabel(text: String, trailing: String? = null) {
+    val t = LocalAutoQTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -226,14 +245,14 @@ fun NothingSectionLabel(text: String, trailing: String? = null) {
     ) {
         Text(
             text = text.uppercase(),
-            color = NothingMuted,
+            color = t.textMuted,
             style = MaterialTheme.typography.labelSmall,
-            letterSpacing = 1.2.sp,
+            letterSpacing = 1.0.sp,
         )
         if (!trailing.isNullOrBlank()) {
             Text(
                 text = trailing,
-                color = NothingSubtle,
+                color = t.textSubtle,
                 style = MaterialTheme.typography.labelSmall,
             )
         }

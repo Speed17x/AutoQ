@@ -2,51 +2,58 @@ package com.hector.moondropdsp.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.hector.moondropdsp.R
+
+val ConsolasFontFamily = FontFamily(
+    Font(R.font.consolas_regular, FontWeight.Normal),
+    Font(R.font.consolas_bold, FontWeight.Bold),
+)
 
 val Typography = Typography(
     titleLarge = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = ConsolasFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
-        letterSpacing = 1.4.sp,
+        letterSpacing = 0.8.sp,
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = ConsolasFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 14.sp,
-        letterSpacing = 1.0.sp,
+        letterSpacing = 0.6.sp,
     ),
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = ConsolasFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = ConsolasFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         lineHeight = 18.sp,
     ),
     labelLarge = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = ConsolasFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 12.sp,
-        letterSpacing = 0.8.sp,
-    ),
-    labelMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
         letterSpacing = 0.6.sp,
     ),
+    labelMedium = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 11.sp,
+        letterSpacing = 0.4.sp,
+    ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Medium,
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
         fontSize = 10.sp,
-        letterSpacing = 0.5.sp,
+        letterSpacing = 0.3.sp,
     ),
 )

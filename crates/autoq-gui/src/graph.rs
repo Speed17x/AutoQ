@@ -1,11 +1,7 @@
-//! Interactive log-frequency (20 Hz – 20 kHz) PEQ / FR graph canvas with
-//! Nothing OS red gradient fill, dashed reference curves, soft glow, draggable
-//! nodes, and mouse-wheel Q adjustment.
+//! Interactive log-frequency (20 Hz – 20 kHz) PEQ / FR graph canvas driven by
+//! the active modular theme palette (`theme::palette()`).
 
-use crate::theme::{
-    BORDER, DIM_GRAY, DOT_GRID, GRAPH_BG, MUTED_GRAY, NOTHING_RED, PURE_WHITE, STOCK_LINE,
-    TARGET_LINE,
-};
+use crate::theme::palette;
 use autoq_core::biquad::{
     combined_response_db, geomspace, interp_log_freq, FilterBand, MAX_FREQ_HZ, MAX_Q, MIN_FREQ_HZ,
     MIN_Q, SAMPLE_RATE_HZ,
@@ -116,20 +112,20 @@ fn draw_dashed_line(
     }
 }
 
-fn draw_red_gradient_fill(painter: &egui::Painter, pts: &[Pos2], plot: Rect, enabled: bool) {
+fn draw_gradient_fill(
+    painter: &egui::Painter,
+    pts: &[Pos2],
+    plot: Rect,
+    active_col: Color32,
+    muted_col: Color32,
+    enabled: bool,
+) {
     if pts.len() < 2 {
         return;
     }
-    let top_col = if enabled {
-        Color32::from_rgba_unmultiplied(0xD7, 0x19, 0x21, 58)
-    } else {
-        Color32::from_rgba_unmultiplied(0x8E, 0x93, 0x9E, 24)
-    };
-    let bot_col = if enabled {
-        Color32::from_rgba_unmultiplied(0xD7, 0x19, 0x21, 4)
-    } else {
-        Color32::from_rgba_unmultiplied(0x8E, 0x93, 0x9E, 2)
-    };
+    let c = if enabled { active_col } else { muted_col };
+    let top_col = Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), if enabled { 56 } else { 24 });
+    let bot_col = Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), if enabled { 4 } else { 2 });
 
     let mut mesh = egui::epaint::Mesh::default();
     let uv = egui::epaint::WHITE_UV;
@@ -165,16 +161,16 @@ pub fn draw_peq_graph(
     st: &GraphState<'_>,
     dragging_idx: &mut Option<usize>,
 ) -> GraphEvent {
+    let pal = palette();
     let desired = Vec2::new(ui.available_width().max(260.0), st.height);
     let (outer, resp) = ui.allocate_exact_size(desired, Sense::click_and_drag());
     let painter = ui.painter_at(outer);
 
-    // Outer obsidian rounded card
     painter.rect(
         outer,
         CornerRadius::same(14),
-        GRAPH_BG,
-        Stroke::new(1.0_f32, BORDER),
+        pal.graph_bg,
+        Stroke::new(1.0_f32, pal.border),
         StrokeKind::Inside,
     );
 
@@ -192,7 +188,6 @@ pub fn draw_peq_graph(
         (-cap, cap, 6.0)
     };
 
-    // Dot-matrix background grid
     let grid_freqs = [20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0];
     let mut db_tick = if show_fr { -10.0 } else { db_min };
     let db_end = if show_fr { 10.0 } else { db_max };
@@ -202,16 +197,21 @@ pub fn draw_peq_graph(
             draw_dashed_line(
                 &clipped,
                 &[Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
-                Stroke::new(1.0_f32, Color32::from_rgb(0x30, 0x34, 0x3E)),
+                Stroke::new(1.0_f32, pal.zero_line),
                 4.0,
                 4.0,
             );
-        } else {
+        } else if pal.use_dot_matrix_grid {
             let mut x = plot.left();
             while x <= plot.right() {
-                clipped.circle_filled(Pos2::new(x, y), 0.9, DOT_GRID);
+                clipped.circle_filled(Pos2::new(x, y), 0.9, pal.grid);
                 x += 12.0;
             }
+        } else {
+            clipped.line_segment(
+                [Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
+                Stroke::new(0.8_f32, pal.grid),
+            );
         }
         painter.text(
             Pos2::new(plot.left() - 5.0, y),
@@ -222,22 +222,26 @@ pub fn draw_peq_graph(
                 format!("{:+.0}", db_tick)
             },
             FontId::monospace(9.0),
-            DIM_GRAY,
+            pal.text_subtle,
         );
         db_tick += db_step;
     }
 
     for &f in &grid_freqs {
         let x = freq_to_x(f, plot);
-        let mut y = plot.top();
-        while y <= plot.bottom() {
-            clipped.circle_filled(Pos2::new(x, y), 0.9, DOT_GRID);
-            y += 12.0;
+        if pal.use_dot_matrix_grid {
+            let mut y = plot.top();
+            while y <= plot.bottom() {
+                clipped.circle_filled(Pos2::new(x, y), 0.9, pal.grid);
+                y += 12.0;
+            }
+        } else {
+            clipped.line_segment(
+                [Pos2::new(x, plot.top()), Pos2::new(x, plot.bottom())],
+                Stroke::new(0.8_f32, pal.grid),
+            );
         }
-        if matches!(
-            f as i32,
-            20 | 100 | 500 | 1000 | 5000 | 20000
-        ) {
+        if matches!(f as i32, 20 | 100 | 500 | 1000 | 5000 | 20000) {
             let lbl = if f >= 1000.0 {
                 format!("{}k", (f / 1000.0).round() as i32)
             } else {
@@ -248,12 +252,11 @@ pub fn draw_peq_graph(
                 Align2::CENTER_CENTER,
                 lbl,
                 FontId::monospace(9.0),
-                DIM_GRAY,
+                pal.text_subtle,
             );
         }
     }
 
-    // Evaluate frequency curves (200 log points)
     let freqs = geomspace(MIN_FREQ_HZ, MAX_FREQ_HZ, 200);
     let eq_resp = if st.dsp_enabled {
         combined_response_db(st.bands, &freqs, SAMPLE_RATE_HZ)
@@ -261,11 +264,11 @@ pub fn draw_peq_graph(
         vec![0.0; freqs.len()]
     };
 
-    let active_col = if st.dsp_enabled { NOTHING_RED } else { MUTED_GRAY };
+    let active_col = if st.dsp_enabled { pal.accent } else { pal.text_muted };
     let glow_col = if st.dsp_enabled {
-        Color32::from_rgba_unmultiplied(0xD7, 0x19, 0x21, 50)
+        Color32::from_rgba_unmultiplied(pal.accent.r(), pal.accent.g(), pal.accent.b(), 48)
     } else {
-        Color32::from_rgba_unmultiplied(0x8E, 0x93, 0x9E, 25)
+        Color32::from_rgba_unmultiplied(pal.text_muted.r(), pal.text_muted.g(), pal.text_muted.b(), 25)
     };
 
     if show_fr {
@@ -275,7 +278,7 @@ pub fn draw_peq_graph(
             .zip(stock_vals.iter())
             .map(|(&f, &v)| Pos2::new(freq_to_x(f, plot), db_to_y(v, plot, db_min, db_max)))
             .collect();
-        draw_dashed_line(&clipped, &stock_pts, Stroke::new(1.3_f32, STOCK_LINE), 5.0, 4.0);
+        draw_dashed_line(&clipped, &stock_pts, Stroke::new(1.3_f32, pal.stock_line), 5.0, 4.0);
 
         if !st.target_fr.is_empty() {
             let tgt_vals = interp_curve_pairs(st.target_fr, &freqs);
@@ -284,16 +287,15 @@ pub fn draw_peq_graph(
                 .zip(tgt_vals.iter())
                 .map(|(&f, &v)| Pos2::new(freq_to_x(f, plot), db_to_y(v, plot, db_min, db_max)))
                 .collect();
-            draw_dashed_line(&clipped, &tgt_pts, Stroke::new(1.3_f32, TARGET_LINE), 3.5, 3.5);
+            draw_dashed_line(&clipped, &tgt_pts, Stroke::new(1.3_f32, pal.target_line), 3.5, 3.5);
         }
 
-        // Resulting FR = Stock + EQ
         let res_pts: Vec<Pos2> = freqs
             .iter()
             .zip(stock_vals.iter().zip(eq_resp.iter()))
             .map(|(&f, (&s, &e))| Pos2::new(freq_to_x(f, plot), db_to_y(s + e, plot, db_min, db_max)))
             .collect();
-        draw_red_gradient_fill(&clipped, &res_pts, plot, st.dsp_enabled);
+        draw_gradient_fill(&clipped, &res_pts, plot, pal.accent, pal.text_muted, st.dsp_enabled);
         clipped.add(egui::Shape::line(res_pts.clone(), Stroke::new(5.5_f32, glow_col)));
         clipped.add(egui::Shape::line(res_pts, Stroke::new(2.3_f32, active_col)));
     } else {
@@ -304,19 +306,18 @@ pub fn draw_peq_graph(
                 .zip(td_vals.iter())
                 .map(|(&f, &v)| Pos2::new(freq_to_x(f, plot), db_to_y(v, plot, db_min, db_max)))
                 .collect();
-            draw_dashed_line(&clipped, &td_pts, Stroke::new(1.3_f32, TARGET_LINE), 3.5, 3.5);
+            draw_dashed_line(&clipped, &td_pts, Stroke::new(1.3_f32, pal.target_line), 3.5, 3.5);
         }
         let eq_pts: Vec<Pos2> = freqs
             .iter()
             .zip(eq_resp.iter())
             .map(|(&f, &v)| Pos2::new(freq_to_x(f, plot), db_to_y(v, plot, db_min, db_max)))
             .collect();
-        draw_red_gradient_fill(&clipped, &eq_pts, plot, st.dsp_enabled);
+        draw_gradient_fill(&clipped, &eq_pts, plot, pal.accent, pal.text_muted, st.dsp_enabled);
         clipped.add(egui::Shape::line(eq_pts.clone(), Stroke::new(5.5_f32, glow_col)));
         clipped.add(egui::Shape::line(eq_pts, Stroke::new(2.3_f32, active_col)));
     }
 
-    // Legend top-left: `● LIVE   -- STOCK   — TARGET` + RMSE top-right
     let mut lx = outer.left() + 14.0;
     let ly = outer.top() + 11.0;
     painter.circle_filled(Pos2::new(lx + 3.0, ly), 3.0, active_col);
@@ -337,7 +338,7 @@ pub fn draw_peq_graph(
             Align2::LEFT_CENTER,
             "-- STOCK",
             FontId::monospace(9.5),
-            STOCK_LINE,
+            pal.stock_line,
         );
         lx += 62.0;
     }
@@ -352,7 +353,7 @@ pub fn draw_peq_graph(
             Align2::LEFT_CENTER,
             short_tgt.to_uppercase(),
             FontId::monospace(9.5),
-            TARGET_LINE,
+            pal.target_line,
         );
     }
     if !st.rmse_text.is_empty() {
@@ -361,11 +362,10 @@ pub fn draw_peq_graph(
             Align2::RIGHT_CENTER,
             st.rmse_text,
             FontId::monospace(9.5),
-            MUTED_GRAY,
+            pal.text_muted,
         );
     }
 
-    // Band control nodes (clean Nothing OS red dots + white ring on selected node)
     let stock_at_band = |f: f64| -> f64 {
         if show_fr {
             interp_curve_pairs(st.stock_fr, &[f]).first().copied().unwrap_or(0.0)
@@ -391,14 +391,17 @@ pub fn draw_peq_graph(
 
     for (idx, &pos) in node_positions.iter().enumerate() {
         if idx == st.selected_band {
-            clipped.circle_filled(pos, 11.5, Color32::from_rgba_unmultiplied(0xD7, 0x19, 0x21, 60));
-            clipped.circle(pos, 7.2, NOTHING_RED, Stroke::new(2.0_f32, PURE_WHITE));
+            clipped.circle_filled(
+                pos,
+                11.5,
+                Color32::from_rgba_unmultiplied(pal.accent.r(), pal.accent.g(), pal.accent.b(), 58),
+            );
+            clipped.circle(pos, 7.2, pal.accent, Stroke::new(2.0_f32, pal.text_primary));
         } else {
             clipped.circle_filled(pos, 3.8, active_col);
         }
     }
 
-    // Mouse interaction: click/drag nodes & mouse-wheel Q
     let mut event = GraphEvent::None;
 
     if resp.drag_started() {

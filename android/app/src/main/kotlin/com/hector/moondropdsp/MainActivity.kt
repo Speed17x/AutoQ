@@ -50,14 +50,11 @@ import com.hector.moondropdsp.ui.MoondropViewModel
 import com.hector.moondropdsp.ui.screens.AdvancedScreen
 import com.hector.moondropdsp.ui.screens.AutoEqScreen
 import com.hector.moondropdsp.ui.screens.EqScreen
+import com.hector.moondropdsp.ui.theme.AppThemeId
+import com.hector.moondropdsp.ui.theme.ConsolasFontFamily
+import com.hector.moondropdsp.ui.theme.LocalAutoQTheme
 import com.hector.moondropdsp.ui.theme.MoondropDSPTheme
-import com.hector.moondropdsp.ui.theme.NothingBorder
-import com.hector.moondropdsp.ui.theme.NothingMuted
-import com.hector.moondropdsp.ui.theme.NothingObsidian
-import com.hector.moondropdsp.ui.theme.NothingRed
-import com.hector.moondropdsp.ui.theme.NothingSurface
-import com.hector.moondropdsp.ui.theme.NothingSurfaceHigh
-import com.hector.moondropdsp.ui.theme.NothingWhite
+import com.hector.moondropdsp.ui.theme.tokensFor
 
 private enum class AppTab(val label: String) {
     EQ("EQ"),
@@ -86,8 +83,23 @@ class MainActivity : ComponentActivity() {
         requestOptionalRuntimePermissions()
 
         setContent {
-            MoondropDSPTheme {
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            val tokens = tokensFor(state.themeId)
+            androidx.compose.runtime.SideEffect {
+                enableEdgeToEdge(
+                    statusBarStyle = if (tokens.isDark) {
+                        SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                    },
+                    navigationBarStyle = if (tokens.isDark) {
+                        SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                    },
+                )
+            }
+            MoondropDSPTheme(themeId = state.themeId) {
                 MoondropAppShell(
                     state = state,
                     viewModel = viewModel,
@@ -128,10 +140,11 @@ private fun MoondropAppShell(
     onPowerOffAndExit: () -> Unit,
 ) {
     var activeTab by rememberSaveable { mutableStateOf(AppTab.EQ) }
+    val t = LocalAutoQTheme.current
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = NothingObsidian,
+        containerColor = t.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             NothingBottomTabBar(
@@ -143,7 +156,7 @@ private fun MoondropAppShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(NothingObsidian)
+                .background(t.background)
                 .padding(innerPadding),
         ) {
             when (activeTab) {
@@ -180,6 +193,7 @@ private fun MoondropAppShell(
 
                 AppTab.ADVANCED -> AdvancedScreen(
                     state = state,
+                    onSelectTheme = viewModel::selectTheme,
                     onApplyPreset = viewModel::applyPreset,
                     onSavePreset = viewModel::saveCustomPreset,
                     onDeletePreset = viewModel::deleteCustomPreset,
@@ -204,10 +218,11 @@ private fun NothingBottomTabBar(
     activeTab: AppTab,
     onSelectTab: (AppTab) -> Unit,
 ) {
+    val t = LocalAutoQTheme.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(NothingObsidian)
+            .background(t.background)
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
@@ -216,8 +231,8 @@ private fun NothingBottomTabBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(CircleShape)
-                .background(NothingSurface)
-                .border(1.dp, NothingBorder, CircleShape)
+                .background(t.surface)
+                .border(1.dp, t.border, CircleShape)
                 .padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -228,17 +243,17 @@ private fun NothingBottomTabBar(
                         .weight(1f)
                         .height(40.dp)
                         .clip(CircleShape)
-                        .background(if (selected) NothingRed else NothingSurfaceHigh)
+                        .background(if (selected) t.accent else t.surfaceHigh)
                         .clickable { onSelectTab(tab) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = tab.label,
-                        color = if (selected) NothingWhite else NothingMuted,
-                        fontFamily = FontFamily.Monospace,
+                        color = if (selected) t.textOnAccent else t.textMuted,
+                        fontFamily = ConsolasFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        letterSpacing = 1.sp,
+                        letterSpacing = 0.8.sp,
                     )
                 }
             }
@@ -246,14 +261,15 @@ private fun NothingBottomTabBar(
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF0B0C0E)
+@Preview(showBackground = true, backgroundColor = 0xFF0E1116)
 @Composable
 fun EqScreenPreview() {
     MoondropDSPTheme {
+        val t = LocalAutoQTheme.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(NothingObsidian)
+                .background(t.background)
                 .statusBarsPadding(),
         ) {
             EqScreen(
