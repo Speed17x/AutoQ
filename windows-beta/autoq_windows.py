@@ -2,15 +2,17 @@
 """AutoQ for Windows — Nothing OS Desktop App [BETA — UNTESTED].
 
 Reuses the PySide6 Nothing OS interface while routing all hardware & EQ calls to
-`backend/moondrop_backend_win.py` (hidapi USB-C HID + Equalizer APO 10-band EQ).
+the native Rust `autoq-cli.exe` engine (`hidapi` USB-C HID 5B/8B + Equalizer APO 10-band EQ),
+falling back to `backend/moondrop_backend_win.py` only when `autoq-cli.exe` is absent.
 """
 
 from __future__ import annotations
 
-import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def _resource_root() -> Path:
@@ -19,11 +21,30 @@ def _resource_root() -> Path:
     return Path(__file__).resolve().parent
 
 
+def _find_win_rust_cli(root: Path) -> Optional[Path]:
+    candidates = [
+        Path(sys.executable).resolve().parent / "autoq-cli.exe",
+        root / "autoq-cli.exe",
+        root / "backend" / "autoq-cli.exe",
+        root.parent / "target" / "release" / "autoq-cli.exe",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
+
+
 def main() -> int:
     root = _resource_root()
+    rust_cli = _find_win_rust_cli(root)
+    if rust_cli is not None:
+        os.environ["AUTOQ_CLI_BIN"] = str(rust_cli)
 
     # 1. Internal backend dispatch when frozen with PyInstaller
     if len(sys.argv) >= 2 and sys.argv[1] == "--backend":
+        if rust_cli is not None:
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            return subprocess.call([str(rust_cli), *sys.argv[2:]], creationflags=creationflags)
         sys.path.insert(0, str(root / "backend"))
         import moondrop_backend_win  # type: ignore
 
@@ -33,38 +54,8 @@ def main() -> int:
     sys.path.insert(0, str(root))
     import autoq_ui  # type: ignore
 
-    # Point backend to Windows backend (frozen or source)
     backend_py = root / "backend" / "moondrop_backend_win.py"
     autoq_ui.BACKEND_SCRIPT = backend_py
-
-    def _win_backend_run(self):  # type: ignore
-        try:
-            cmd = (
-                [sys.executable, "--backend", *self.args]
-                if getattr(sys, "frozen", False)
-                else [sys.executable, str(backend_py), *self.args]
-            )
-            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=35,
-                creationflags=creationflags,
-            )
-            raw = (proc.stdout or "").strip()
-            if not raw:
-                err = (proc.stderr or "").strip().splitlines()
-                self.finished_json.emit(
-                    self.tag,
-                    {"ok": False, "error": err[0] if err else "Sin respuesta del backend Windows"},
-                )
-                return
-            self.finished_json.emit(self.tag, json.loads(raw))
-        except Exception as exc:
-            self.finished_json.emit(self.tag, {"ok": False, "error": str(exc)})
-
-    autoq_ui.BackendWorker.run = _win_backend_run  # type: ignore
 
     # Disable Linux AF_UNIX IPC on Windows
     autoq_ui.send_ipc_if_running = lambda *_a, **_kw: False  # type: ignore
@@ -75,7 +66,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("AutoQ (Windows Beta)")
     win = autoq_ui.AutoQNothingWindow(start_full=True)
-    win.setWindowTitle("AutoQ — Windows BETA (Sin testear)")
+    win.setWindowTitle("AutoQ — Windows BETA (Motor Rust)")
     win.show()
     win.refresh_status(False)
     return app.exec()

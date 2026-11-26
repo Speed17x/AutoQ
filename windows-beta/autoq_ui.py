@@ -18,6 +18,7 @@ import base64
 import json
 import math
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -233,6 +234,37 @@ def fmt_freq(f: float) -> str:
     return f"{int(round(f))}"
 
 
+def find_rust_cli() -> Optional[Path]:
+    """Locate the native Rust `autoq-cli` binary (preferred over legacy Python backend)."""
+    exe_name = "autoq-cli.exe" if os.name == "nt" else "autoq-cli"
+    env_override = os.environ.get("AUTOQ_CLI_BIN", "").strip()
+    candidates: List[Path] = []
+    if env_override:
+        candidates.append(Path(env_override))
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass = Path(getattr(sys, "_MEIPASS"))
+        candidates.extend([meipass / exe_name, meipass / "backend" / exe_name])
+    candidates.extend([
+        Path(sys.executable).resolve().parent / exe_name,
+        BASE_DIR / "backend" / exe_name,
+        BASE_DIR / exe_name,
+        BASE_DIR.parent / "target" / "release" / exe_name,
+        Path.home() / ".local" / "bin" / exe_name,
+    ])
+    for cand in candidates:
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return cand
+    which_hit = shutil.which(exe_name)
+    return Path(which_hit) if which_hit else None
+
+
+def resolve_backend_cmd(args: List[str]) -> List[str]:
+    rust_cli = find_rust_cli()
+    if rust_cli is not None:
+        return [str(rust_cli), *args]
+    return [sys.executable, str(BACKEND_SCRIPT), *args]
+
+
 # ── Background Subprocess Runner (Non-blocking UI) ───────────────────────────
 class BackendWorker(QThread):
     finished_json = Signal(str, dict)
@@ -244,11 +276,13 @@ class BackendWorker(QThread):
 
     def run(self) -> None:
         try:
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             proc = subprocess.run(
-                [sys.executable, str(BACKEND_SCRIPT), *self.args],
+                resolve_backend_cmd(self.args),
                 capture_output=True,
                 text=True,
                 timeout=35,
+                creationflags=creationflags,
             )
             raw = (proc.stdout or "").strip()
             if not raw:
@@ -1201,9 +1235,15 @@ class AutoQNothingWindow(QWidget):
         return page
 
     def _build_advanced_tab(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         lay = QVBoxLayout(page)
-        lay.setContentsMargins(0, 2, 0, 0)
+        lay.setContentsMargins(0, 2, 2, 0)
         lay.setSpacing(8)
 
         # ── Presets Card ─────────────────────────────────────────────────────
@@ -1217,7 +1257,7 @@ class AutoQNothingWindow(QWidget):
 
         self.preset_list = QListWidget()
         self.preset_list.setObjectName("nothingList")
-        self.preset_list.setFixedHeight(104)
+        self.preset_list.setFixedHeight(96)
         self.preset_list.itemDoubleClicked.connect(lambda _: self._load_selected_preset())
         pl.addWidget(self.preset_list)
 
@@ -1307,6 +1347,38 @@ class AutoQNothingWindow(QWidget):
         self.spp_card.setVisible(False)
         lay.addWidget(self.spp_card)
 
+        # ── Linux Desktop Widgets & USB Permissions 1-Click Card ─────────────
+        if os.name != "nt":
+            integ_card = QFrame()
+            integ_card.setObjectName("subCard")
+            il = QVBoxLayout(integ_card)
+            il.setContentsMargins(10, 8, 10, 8)
+            il.setSpacing(6)
+            il.addWidget(self._section_lbl("INTEGRACIÓN LINUX Y PERMISOS USB (1 CLIC)"))
+
+            integ_r1 = QHBoxLayout()
+            integ_r1.setSpacing(5)
+            b_hypr = QPushButton("WIDGET HYPRLAND")
+            b_hypr.setObjectName("pillBtn")
+            b_hypr.setToolTip("Instala el widget flotante, lanzador y módulo Waybar incluidos en el paquete")
+            b_hypr.clicked.connect(self._install_hyprland_1click)
+            integ_r1.addWidget(b_hypr, 1)
+
+            b_kde = QPushButton("PLASMOID KDE 6")
+            b_kde.setObjectName("pillBtn")
+            b_kde.setToolTip("Instala el Plasmoid nativo QML incluido en el paquete (requiere kpackagetool6)")
+            b_kde.clicked.connect(self._install_kde_1click)
+            integ_r1.addWidget(b_kde, 1)
+            il.addLayout(integ_r1)
+
+            b_udev = QPushButton("ACTIVAR ACCESO USB DSP SIN SUDO (REGLAS UDEV)")
+            b_udev.setObjectName("pillBtn")
+            b_udev.setToolTip("Configura /etc/udev/rules.d/99-autoq-usb-dsp.rules vía pkexec")
+            b_udev.clicked.connect(self._install_udev_1click)
+            il.addWidget(b_udev)
+
+            lay.addWidget(integ_card)
+
         # ── Hardware & PipeWire Diagnostics Card ─────────────────────────────
         diag_card = QFrame()
         diag_card.setObjectName("subCard")
@@ -1321,7 +1393,8 @@ class AutoQNothingWindow(QWidget):
         lay.addWidget(diag_card)
 
         lay.addStretch(1)
-        return page
+        scroll.setWidget(page)
+        return scroll
 
     @staticmethod
     def _section_lbl(txt: str) -> QLabel:
@@ -2233,6 +2306,93 @@ class AutoQNothingWindow(QWidget):
         self.busy = True
         self._run_backend("btspp", args)
 
+    def _ensure_local_rust_cli(self) -> None:
+        cli = find_rust_cli()
+        if cli is not None:
+            bin_dir = Path.home() / ".local" / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            dst = bin_dir / "autoq-cli"
+            try:
+                if cli.resolve() != dst.resolve():
+                    shutil.copy2(cli, dst)
+                    dst.chmod(0o755)
+            except OSError:
+                pass
+
+    def _locate_widget_dir(self, sub_rel: str) -> Optional[Path]:
+        roots: List[Path] = []
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            roots.append(Path(getattr(sys, "_MEIPASS")))
+        roots.extend([
+            Path("/usr/share/autoq"),
+            BASE_DIR.parent,
+            BASE_DIR,
+        ])
+        for r in roots:
+            for cand in (r / "widgets" / sub_rel, r / sub_rel):
+                if cand.exists():
+                    return cand
+        return None
+
+    def _install_hyprland_1click(self) -> None:
+        self._ensure_local_rust_cli()
+        src = self._locate_widget_dir("linux-hyprland")
+        if src is None and (BASE_DIR / "install.sh").is_file():
+            src = BASE_DIR
+        if src is None or not (src / "install.sh").is_file():
+            self._set_status("NO SE ENCONTRÓ EL INSTALADOR DE HYPRLAND", error=True)
+            return
+        try:
+            rc = subprocess.call(["bash", str(src / "install.sh")], stdin=subprocess.DEVNULL)
+            if rc == 0:
+                self._set_status("WIDGET HYPRLAND INSTALADO EN ~/.local/bin/autoq-widget")
+            else:
+                self._set_status("ERROR INSTALANDO WIDGET HYPRLAND", error=True)
+        except Exception as exc:
+            self._set_status(str(exc), error=True)
+
+    def _install_kde_1click(self) -> None:
+        self._ensure_local_rust_cli()
+        if not shutil.which("kpackagetool6"):
+            self._set_status("REQUIERE KDE PLASMA 6 (kpackagetool6 NO DETECTADO)", error=True)
+            return
+        src = self._locate_widget_dir("linux-kde/plasmoid")
+        if src is None:
+            self._set_status("NO SE ENCONTRÓ EL PLASMOID INCLUIDO", error=True)
+            return
+        rc = subprocess.call(["kpackagetool6", "--type", "Plasma/Applet", "--upgrade", str(src)])
+        if rc != 0:
+            rc = subprocess.call(["kpackagetool6", "--type", "Plasma/Applet", "--install", str(src)])
+        if rc == 0:
+            self._set_status("PLASMOID AUTOQ INSTALADO EN KDE PLASMA 6")
+        else:
+            self._set_status("ERROR INSTALANDO PLASMOID KDE", error=True)
+
+    def _install_udev_1click(self) -> None:
+        rule_path = Path("/etc/udev/rules.d/99-autoq-usb-dsp.rules")
+        sys_rule = Path("/usr/lib/udev/rules.d/99-autoq-usb-dsp.rules")
+        if rule_path.exists() or sys_rule.exists():
+            self._set_status("REGLAS UDEV USB YA ESTÁN ACTIVAS")
+            return
+        if not shutil.which("pkexec"):
+            self._set_status("PKEXEC NO DISPONIBLE; CONFIGURA UDEV POR TERMINAL", error=True)
+            return
+        rules_body = (
+            'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", MODE="0666"\\n'
+            'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2fc6", MODE="0666"\\n'
+            'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2f20", MODE="0666"\\n'
+        )
+        cmd = (
+            f"printf '{rules_body}' > /etc/udev/rules.d/99-autoq-usb-dsp.rules && "
+            "udevadm control --reload-rules && udevadm trigger"
+        )
+        rc = subprocess.call(["pkexec", "sh", "-c", cmd])
+        if rc == 0:
+            self._set_status("PERMISOS USB DSP ACTIVADOS (RECONECTA SI ES NECESARIO)")
+            self.refresh_status(False)
+        else:
+            self._set_status("INSTALACIÓN UDEV CANCELADA O FALLIDA", error=True)
+
     def wait_workers(self) -> None:
         for w in list(self._workers):
             if w.isRunning():
@@ -2306,9 +2466,18 @@ def start_ipc_server(win: AutoQNothingWindow) -> None:
 
 
 def cmd_waybar_status() -> int:
+    rust_cli = find_rust_cli()
+    if rust_cli is not None:
+        try:
+            raw = subprocess.check_output([str(rust_cli), "waybar-status"], text=True, timeout=8).strip()
+            if raw:
+                print(raw)
+                return 0
+        except Exception:
+            pass
     try:
         raw = subprocess.check_output(
-            [sys.executable, str(BACKEND_SCRIPT), "status"],
+            resolve_backend_cmd(["status"]),
             text=True,
             timeout=10,
         )
@@ -2338,30 +2507,30 @@ def render_screenshot_demo(out_dir: Path) -> int:
     win = AutoQNothingWindow(start_full=False)
 
     # Populate realistic demo data from live backend synchronously
-    raw = subprocess.check_output([sys.executable, str(BACKEND_SCRIPT), "status"], text=True)
+    raw = subprocess.check_output(resolve_backend_cmd(["status"]), text=True)
     st = json.loads(raw)
     win._on_backend_done("status", st)
 
     # Load real Golden Ages 2 -> 7Hz x Crinacle Zero 3 10-band fit for rich curve visualization
-    s_ga = json.loads(subprocess.check_output([sys.executable, str(BACKEND_SCRIPT), "search", "--q", "golden ages 2", "--limit", "1"], text=True))
-    s_z3 = json.loads(subprocess.check_output([sys.executable, str(BACKEND_SCRIPT), "search", "--q", "7hz x crinacle zero 3", "--limit", "1"], text=True))
+    s_ga = json.loads(subprocess.check_output(resolve_backend_cmd(["search", "--q", "golden ages 2", "--limit", "1"]), text=True))
+    s_z3 = json.loads(subprocess.check_output(resolve_backend_cmd(["search", "--q", "7hz x crinacle zero 3", "--limit", "1"]), text=True))
     if s_ga.get("results") and s_z3.get("results"):
         win.selected_source = s_ga["results"][0]
         m = json.loads(
             subprocess.check_output(
-                [
-                    sys.executable,
-                    str(BACKEND_SCRIPT),
-                    "autoeq-match",
-                    "--src-b64",
-                    to_b64(s_ga["results"][0]["rel_path"]),
-                    "--tgt-b64",
-                    to_b64(s_z3["results"][0]["rel_path"]),
-                    "--bands",
-                    "10",
-                    "--max-freq",
-                    "10000",
-                ],
+                resolve_backend_cmd(
+                    [
+                        "autoeq-match",
+                        "--src-b64",
+                        to_b64(s_ga["results"][0]["rel_path"]),
+                        "--tgt-b64",
+                        to_b64(s_z3["results"][0]["rel_path"]),
+                        "--bands",
+                        "10",
+                        "--max-freq",
+                        "10000",
+                    ]
+                ),
                 text=True,
             )
         )

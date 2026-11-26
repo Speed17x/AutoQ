@@ -5,7 +5,7 @@
 // 2. Pega este bloque dentro de ~/.config/waybar/config.jsonc:
 {
   "custom/autoq": {
-    "exec": "~/.local/bin/autoq-widget --status-waybar",
+    "exec": "~/.local/bin/autoq-cli waybar-status",
     "return-type": "json",
     "interval": 6,
     "on-click": "~/.local/bin/autoq-widget --toggle",

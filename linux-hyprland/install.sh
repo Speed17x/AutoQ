@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INSTALL_DIR="${HOME}/.local/share/autoq-hyprland"
 BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
@@ -10,9 +11,34 @@ echo "=========================================="
 echo "  AutoQ — Nothing OS EQ para Hyprland"
 echo "=========================================="
 
-# 1. Verificar dependencias de Python
+mkdir -p "${INSTALL_DIR}/backend" "${BIN_DIR}" "${APP_DIR}"
+
+# 1. Compilar o instalar el motor nativo en Rust (autoq-cli) si está disponible
+RUST_BIN=""
+if [ -x "${SCRIPT_DIR}/backend/autoq-cli" ]; then
+    RUST_BIN="${SCRIPT_DIR}/backend/autoq-cli"
+elif [ -x "${REPO_ROOT}/target/release/autoq-cli" ]; then
+    RUST_BIN="${REPO_ROOT}/target/release/autoq-cli"
+elif command -v cargo >/dev/null 2>&1 && [ -f "${REPO_ROOT}/Cargo.toml" ]; then
+    echo "[*] Compilando motor nativo Rust (autoq-cli --release)..."
+    (cd "${REPO_ROOT}" && cargo build --release -p autoq-cli)
+    RUST_BIN="${REPO_ROOT}/target/release/autoq-cli"
+fi
+
+if [ -n "${RUST_BIN}" ] && [ -x "${RUST_BIN}" ]; then
+    cp -f "${RUST_BIN}" "${BIN_DIR}/autoq-cli"
+    cp -f "${RUST_BIN}" "${INSTALL_DIR}/backend/autoq-cli"
+    chmod +x "${BIN_DIR}/autoq-cli" "${INSTALL_DIR}/backend/autoq-cli"
+    echo "[OK] Motor Rust instalado en: ${BIN_DIR}/autoq-cli"
+    PY_DEPS=(PySide6)
+else
+    echo "[!] autoq-cli (Rust) no encontrado; usando backend Python de respaldo."
+    PY_DEPS=(PySide6 numpy requests)
+fi
+
+# 2. Verificar dependencias de Python (solo PySide6 cuando autoq-cli está activo)
 missing=()
-for mod in PySide6 numpy requests; do
+for mod in "${PY_DEPS[@]}"; do
     if ! python3 -c "import ${mod}" >/dev/null 2>&1; then
         missing+=("${mod}")
     fi
@@ -22,25 +48,29 @@ if [ ${#missing[@]} -gt 0 ]; then
     echo ""
     echo "[!] Faltan módulos de Python: ${missing[*]}"
     echo "    En Arch / CachyOS / EndeavourOS instala con:"
-    echo "      sudo pacman -S python-pyside6 python-numpy python-requests"
+    echo "      sudo pacman -S python-pyside6"
     echo "    En Fedora:"
-    echo "      sudo dnf install python3-pyside6 python3-numpy python3-requests"
+    echo "      sudo dnf install python3-pyside6"
     echo "    O con pip:"
-    echo "      pip install --user PySide6 numpy requests"
+    echo "      pip install --user ${missing[*]}"
     echo ""
-    read -r -p "¿Continuar copiando los archivos de todos modos? [S/n] " ans
-    case "${ans:-S}" in
-        [nN]*) exit 1 ;;
-    esac
+    if [ -t 0 ]; then
+        read -r -p "¿Continuar copiando los archivos de todos modos? [S/n] " ans
+        case "${ans:-S}" in
+            [nN]*) exit 1 ;;
+        esac
+    fi
 fi
 
-# 2. Copiar aplicación y backend
-mkdir -p "${INSTALL_DIR}/backend" "${BIN_DIR}" "${APP_DIR}"
+# 3. Copiar aplicación y backend
 cp -f "${SCRIPT_DIR}/autoq_hyprland.py" "${INSTALL_DIR}/"
 cp -f "${SCRIPT_DIR}/hyprland-autoq.conf" "${INSTALL_DIR}/"
 cp -f "${SCRIPT_DIR}/waybar-module.jsonc" "${INSTALL_DIR}/"
-cp -f "${SCRIPT_DIR}/backend/"*.py "${INSTALL_DIR}/backend/"
-chmod +x "${INSTALL_DIR}/autoq_hyprland.py" "${INSTALL_DIR}/backend/moondrop_backend.py"
+if compgen -G "${SCRIPT_DIR}/backend/*.py" >/dev/null; then
+    cp -f "${SCRIPT_DIR}/backend/"*.py "${INSTALL_DIR}/backend/"
+    chmod +x "${INSTALL_DIR}/backend/moondrop_backend.py" 2>/dev/null || true
+fi
+chmod +x "${INSTALL_DIR}/autoq_hyprland.py"
 
 # 3. Crear comando ejecutable ~/.local/bin/autoq-widget
 cat > "${BIN_DIR}/autoq-widget" <<EOF

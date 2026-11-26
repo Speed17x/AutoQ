@@ -1,11 +1,19 @@
-﻿# AutoQ — Windows Beta Build Script (PowerShell)
-# Compila un ejecutable portable en dist/AutoQ-Windows-Beta/
+﻿# AutoQ — Windows Beta Build Script (Rust Core + PySide6 UI)
+# Compila autoq-cli.exe en Rust y genera un ejecutable portable en dist/AutoQ-Windows-Beta/
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=============================================="
-Write-Host "  AutoQ — Windows BETA Builder (PyInstaller)"
-Write-Host "=============================================="
+Write-Host "=========================================================="
+Write-Host "  AutoQ — Windows BETA Builder (Rust Core + PyInstaller)"
+Write-Host "=========================================================="
+
+Push-Location ..
+Write-Host "[*] Compilando motor nativo Rust (autoq-cli.exe --release) ..."
+cargo build --release -p autoq-cli
+$RustCli = Join-Path (Get-Location) "target\release\autoq-cli.exe"
+Pop-Location
+
+Copy-Item -Path $RustCli -Destination "backend\autoq-cli.exe" -Force
 
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt pyinstaller
@@ -17,14 +25,14 @@ python -m PyInstaller `
     --windowed `
     --name "AutoQ-Windows-Beta" `
     --paths "." `
-    --paths "backend" `
-    --hidden-import moondrop_backend_win `
-    --hidden-import chu2_hid_win `
-    --hidden-import win_eq_apo `
-    --hidden-import autoeq_db `
-    --hidden-import biquad `
-    --hidden-import hid `
-    --add-data "backend;backend" `
+    --exclude-module numpy `
+    --exclude-module requests `
+    --exclude-module PySide6.QtWebEngineCore `
+    --exclude-module PySide6.Qt3DCore `
+    --exclude-module PySide6.QtMultimedia `
+    --exclude-module PySide6.QtQml `
+    --exclude-module PySide6.QtQuick `
+    --add-binary "$RustCli;." `
     autoq_windows.py
 
 Write-Host ""

@@ -14,8 +14,7 @@ PlasmoidItem {
     switchWidth: Kirigami.Units.gridUnit * 14
     switchHeight: Kirigami.Units.gridUnit * 14
 
-    readonly property string backendScript: "/home/hector/Antigravity/chu2_dsp_widget/moondrop_backend.py"
-    readonly property string pollBin: "/home/hector/Antigravity/chu2_dsp_widget/moondrop_poll"
+    readonly property string autoqCliCmd: "PATH=\"$HOME/.local/bin:$PATH\" autoq-cli"
     readonly property string monoFont: "FantasqueSansM Nerd Font Mono"
     readonly property color cyberBg: Qt.rgba(0.137, 0.149, 0.153, 0.56)
     readonly property color cyberPanel: Qt.rgba(0.078, 0.086, 0.094, 0.42)
@@ -75,14 +74,15 @@ PlasmoidItem {
     }
 
     function runBackend(tag, args) {
-        var cmd = "python3 " + backendScript + " " + args;
+        var cmd = autoqCliCmd + " " + args;
         pendingTags[cmd] = tag;
         execSource.connectSource(cmd);
     }
 
     function runFastPoll() {
-        pendingTags[pollBin] = "poll";
-        execSource.connectSource(pollBin);
+        var cmd = autoqCliCmd + " poll";
+        pendingTags[cmd] = "poll";
+        execSource.connectSource(cmd);
     }
 
     function refreshStatus(forceDb, readBands) {

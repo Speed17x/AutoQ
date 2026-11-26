@@ -4,6 +4,29 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [1.1.0] — 2026-11-25
+
+### Añadido
+- **Motor nativo unificado en Rust (`crates/autoq-core` + `crates/autoq-cli`)**:
+  - Binario único de `2.9 MB` (cero dependencias de `numpy`, `requests` u OpenSSL del sistema) con contrato JSON 100 % compatible en Linux y Windows.
+  - Optimizador RBJ/PEQ `fit_peq_bands` ×24 más rápido (`18 ms` frente a `439 ms` en Python, con paridad numérica exacta).
+  - Driver USB-C HID unificado para **KTMicro 5 bandas** y **Moondrop 8 bandas** en Linux (`/dev/hidraw`) y Windows (`hidapi`), llevando soporte 8-band también a Windows.
+  - Subcomandos nativos ultrarrápidos: `autoq-cli poll` (`1 ms`, reemplaza a `moondrop_poll.c`), `autoq-cli waybar-status` y el modo interactivo de terminal `autoq-cli eq` con atribución visible de la fuente de medición (`AutoEq MIT` / `Squiglink`).
+  - Migración automática de configuración de `~/.config/chu2-dsp-widget` → `~/.config/autoq`.
+- **Integración 1-clic en la pestaña *Avanzado*** (`linux-hyprland/autoq_hyprland.py` y AppImage): botones para instalar **Widget Hyprland**, **Plasmoid KDE 6** y activar **reglas USB `udev`** vía `pkexec`.
+- **Empaquetado nativo para Linux (`packaging/` e `install-linux.sh`)**:
+  - Arch / CachyOS / EndeavourOS (`packaging/aur/PKGBUILD` y `autoq-bin` para `paru`/`yay`/`pacman`).
+  - Debian / Ubuntu / Linux Mint (`packaging/deb/build_deb.sh` generando `autoq_1.1.0_amd64.deb` de `1.5 MB` con reglas `udev` automáticas).
+  - Instalador universal en 1 línea `install-linux.sh` (con soporte `--cli-only`).
+- **[`ROADMAP.md`](./ROADMAP.md)** con estrategia *Rust-First*.
+
+### Cambiado
+- **KDE Plasma 6 (`linux-kde/plasmoid/contents/ui/main.qml`)**: eliminadas rutas absolutas fijas; ahora ejecuta `autoq-cli` desde `$HOME/.local/bin` o `PATH`.
+- **AppImage (`linux-appimage/build_appimage.sh`)**: compila y empaqueta `autoq-cli`, genera icono PNG `256x256` (`.DirIcon`) y excluye `numpy`, `requests` y módulos pesados no usados de `PySide6`.
+- **Plantilla CI/CD (`docs/github-actions-build-releases.yml`)**: añade `cargo test --workspace`, compilación Rust Linux/Windows, generación de `.deb`, binario `autoq-cli-linux-x86_64`, APK Android y `SHA256SUMS.txt`.
+
+---
+
 ## [1.0.0] — 2026-11-25
 
 ### Añadido

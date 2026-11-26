@@ -1,0 +1,4 @@
+# AutoQ — Direct user-space USB HID access for Moondrop / KTMicro DSP cables & DACs
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2fc6", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2f20", MODE="0666", TAG+="uaccess"

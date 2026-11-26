@@ -1,4 +1,4 @@
-name: Build AutoQ Releases (Linux AppImage & Windows Beta)
+name: Build AutoQ Releases (Rust CLI + DEB + AppImage + Windows Beta + Android APK)
 
 on:
   workflow_dispatch:
@@ -10,45 +10,88 @@ permissions:
   contents: write
 
 jobs:
-  build-linux-appimage:
-    name: Linux AppImage (x86_64)
+  rust-tests:
+    name: Rust Core & CLI Unit Tests
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run workspace unit tests
+        run: cargo test --workspace
+
+  build-linux-packages:
+    name: Linux CLI + Debian (.deb) + AppImage (x86_64)
+    needs: [rust-tests]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install system dependencies for Qt / AppImage
+      - name: Install system dependencies for Qt / AppImage / dpkg
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 fuse libfuse2 squashfs-tools curl
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 fuse libfuse2 squashfs-tools dpkg-dev curl
 
-      - name: Install Python build dependencies
+      - name: Install Python UI build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyinstaller PySide6 numpy requests
+          python -m pip install pyinstaller PySide6
 
-      - name: Build AutoQ-x86_64.AppImage
+      - name: Build AutoQ-x86_64.AppImage (also builds release autoq-cli)
         run: |
           chmod +x linux-appimage/build_appimage.sh
           ./linux-appimage/build_appimage.sh
+          cp target/release/autoq-cli linux-appimage/dist/autoq-cli-linux-x86_64
+          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64
 
-      - name: Upload Linux AppImage artifact
+      - name: Build Debian/Ubuntu .deb package
+        run: |
+          VER="${GITHUB_REF_NAME:-1.1.0}"
+          VER="${VER#v}"
+          chmod +x packaging/deb/build_deb.sh
+          ./packaging/deb/build_deb.sh "${VER}"
+          cp packaging/deb/dist/autoq_*_amd64.deb linux-appimage/dist/
+
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Linux-AppImage
-          path: linux-appimage/dist/AutoQ-x86_64.AppImage
+          name: AutoQ-Linux-Packages
+          path: |
+            linux-appimage/dist/AutoQ-x86_64.AppImage
+            linux-appimage/dist/autoq-cli-linux-x86_64
+            linux-appimage/dist/autoq_*_amd64.deb
 
   build-windows-beta:
-    name: Windows Beta Portable (x64 - Untested)
+    name: Windows Beta Portable (x64 — Rust Core, Untested)
+    needs: [rust-tests]
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -68,10 +111,37 @@ jobs:
           name: AutoQ-Windows-Beta-x64
           path: windows-beta/dist/AutoQ-Windows-Beta-x64.zip
 
+  build-android-apk:
+    name: Android APK (Kotlin + Jetpack Compose)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: Build Android APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk AutoQ-Android.apk
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoQ-Android-APK
+          path: android/AutoQ-Android.apk
+
   publish-release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux-appimage, build-windows-beta]
+    needs: [build-linux-packages, build-windows-beta, build-android-apk]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -79,14 +149,26 @@ jobs:
         with:
           path: release-assets
 
+      - name: Prepare assets and SHA256SUMS.txt
+        run: |
+          mkdir -p dist-release
+          cp release-assets/AutoQ-Linux-Packages/* dist-release/
+          cp release-assets/AutoQ-Windows-Beta-x64/AutoQ-Windows-Beta-x64.zip dist-release/
+          cp release-assets/AutoQ-Android-APK/AutoQ-Android.apk dist-release/
+          cd dist-release
+          sha256sum * > SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
             ### Descargas incluidas
-            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación independiente para cualquier distribución/escritorio Linux, con instaladores opcionales de widgets (`--install-hyprland-widget` / `--install-kde-plasmoid`).
-            - **Windows Beta (`AutoQ-Windows-Beta-x64.zip`)**: ⚠️ **VERSIÓN BETA SIN TESTEAR** en hardware Windows real (usa `hidapi` para USB-C HID y Equalizer APO para EQ global de 10 bandas).
-          files: |
-            release-assets/AutoQ-Linux-AppImage/AutoQ-x86_64.AppImage
-            release-assets/AutoQ-Windows-Beta-x64/AutoQ-Windows-Beta-x64.zip
+            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` automáticamente).
+            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: portable universal para cualquier distro Linux, con instalación en 1 clic de widgets Hyprland y KDE Plasma 6 desde la pestaña *Avanzado*.
+            - **Linux CLI puro en Rust (`autoq-cli-linux-x86_64`)**: binario independiente de `2.9 MB` sin dependencias gráficas (`autoq-cli eq "Moondrop Chu 2" --commit`).
+            - **Arch / CachyOS (`paru` / `pacman`)**: `PKGBUILD` disponible en `packaging/aur/`.
+            - **Android (`AutoQ-Android.apk`)**: app nativa Kotlin + Jetpack Compose estilo Nothing OS.
+            - **Windows Beta (`AutoQ-Windows-Beta-x64.zip`)**: ⚠️ **VERSIÓN BETA SIN TESTEAR** en hardware Windows real (`autoq-cli.exe` en Rust + Equalizer APO).
+            - **Sumas de verificación (`SHA256SUMS.txt`)**.
+          files: dist-release/*

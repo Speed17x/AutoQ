@@ -6,8 +6,12 @@ __pycache__/
 .venv/
 venv/
 
-# C / Native binaries
+# C / Rust / Native binaries
+/target/
 linux-kde/moondrop_poll
+linux-hyprland/backend/autoq-cli
+linux-kde/autoq-cli
+windows-beta/backend/autoq-cli.exe
 *.o
 *.so
 
@@ -23,13 +27,17 @@ android/.idea/
 *.keystore
 *.jks
 
-# AppImage / PyInstaller build outputs
+# AppImage / PyInstaller / Package build outputs
 linux-appimage/build/
 linux-appimage/dist/
 windows-beta/build/
 windows-beta/dist/
+packaging/deb/build/
+packaging/deb/dist/
 *.spec
 *.AppImage
+*.deb
+*.pkg.tar.*
 
 # OS / IDE
 .DS_Store

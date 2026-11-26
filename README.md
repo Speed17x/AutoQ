@@ -10,12 +10,13 @@ Permite controlar tanto **hardware DSP USB-C integrado** (Moondrop Chu 2 DSP, Fr
 
 | Carpeta | Plataforma | Interfaz | Motor de EQ |
 | :--- | :--- | :--- | :--- |
+| [`crates/`](./crates/) | **Núcleo Multiplataforma (Rust)** | Binario nativo `autoq-cli` + librería `autoq-core` (`< 2 ms` de arranque, cero `numpy`/`requests`) | Optimizador RBJ/PEQ, USB-C HID 5/8 bandas (`hidraw`/`hidapi`), AutoEQ 8 fuentes, PipeWire, Equalizer APO y BT SPP |
 | [`android/`](./android/) | **Android 9+ (API 28–36)** | App nativa Jetpack Compose + Widget de pantalla de inicio estilo Nothing OS | USB-C HID (5/8 bandas), Bluetooth SPP y servicio global `GlobalEqService` |
-| [`linux-appimage/`](./linux-appimage/) | **Linux Universal (AppImage x86_64)** | App de escritorio independiente (GNOME, KDE, Hyprland, XFCE) + instaladores opcionales de widgets | USB-C HID directo (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
-| [`linux-hyprland/`](./linux-hyprland/) | **Linux / Hyprland (Wayland)** | Widget flotante compacto + App PySide6 de 3 pestañas + módulo Waybar | USB-C HID directo (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
-| [`linux-kde/`](./linux-kde/) | **Linux / KDE Plasma 6** | Plasmoid nativo QML (`org.hector.moondropeq`) + App de escritorio Qt6/PySide6 | Backend JSON CLI compartido (`moondrop_backend.py`) + USB HID / PipeWire / ALSA helper |
-| [`windows-beta/`](./windows-beta/) | **Windows 10/11 (`BETA — SIN TESTEAR`)** | App de escritorio PySide6 estilo Nothing OS | USB-C HID vía `hidapi` (KTMicro 5 bandas) + EQ global de 10 bandas vía **Equalizer APO** |
-| [`docs/`](./docs/) | **Documentación técnica** | — | [Arquitectura](./docs/ARCHITECTURE.md) y [Protocolo USB HID](./docs/USB_HID_PROTOCOL.md) |
+| [`linux-appimage/`](./linux-appimage/) | **Linux Universal (AppImage x86_64)** | App de escritorio independiente (GNOME, KDE, Hyprland, XFCE) + instaladores opcionales de widgets | Motor `autoq-cli` en Rust + USB-C HID (`/dev/hidraw`), Bluetooth SPP y PipeWire `filter-chain` (10 bandas) |
+| [`linux-hyprland/`](./linux-hyprland/) | **Linux / Hyprland (Wayland)** | Widget flotante compacto + App PySide6 de 3 pestañas + módulo Waybar | Motor `autoq-cli` en Rust (`waybar-status` nativo) + USB-C HID, Bluetooth SPP y PipeWire (10 bandas) |
+| [`linux-kde/`](./linux-kde/) | **Linux / KDE Plasma 6** | Plasmoid nativo QML (`org.hector.moondropeq`) + App de escritorio Qt6/PySide6 | Motor `autoq-cli` en Rust (`poll` en `1 ms` + JSON CLI) + USB HID / PipeWire |
+| [`windows-beta/`](./windows-beta/) | **Windows 10/11 (`BETA — SIN TESTEAR`)** | App de escritorio PySide6 estilo Nothing OS | Motor `autoq-cli.exe` en Rust (`hidapi` 5 y 8 bandas) + EQ global de 10 bandas vía **Equalizer APO** |
+| [`docs/`](./docs/) | **Documentación y Roadmap** | — | [Roadmap Rust-First](./ROADMAP.md), [Arquitectura](./docs/ARCHITECTURE.md) y [Protocolo USB HID](./docs/USB_HID_PROTOCOL.md) |
 
 ---
 
@@ -56,28 +57,55 @@ cd android
 ```
 El APK generado se ubica en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-### 2. Linux — Hyprland / Wayland (`linux-hyprland/`)
-Consulta la guía completa en [`linux-hyprland/README.md`](./linux-hyprland/README.md).
+### 2. Instalación rápida en Linux (`paru`/`pacman`, `apt`, `curl` o `AppImage`)
+
+Consulta todos los detalles de empaquetado en [`packaging/README.md`](./packaging/README.md):
+
+* **Arch Linux / CachyOS / EndeavourOS (`paru` / `yay` / `pacman`):**
+  ```bash
+  # Una vez publicado en AUR:
+  paru -S autoq-bin
+  # O instalando localmente con pacman desde el repositorio:
+  cd packaging/aur && makepkg -si
+  ```
+* **Debian / Ubuntu / Linux Mint / Pop!_OS (`apt`):**
+  ```bash
+  sudo apt install ./autoq_1.1.0_amd64.deb
+  ```
+  *(Tanto `pacman` como `apt` configuran automáticamente las reglas USB HID `/lib/udev/rules.d/99-autoq-usb-dsp.rules` sin pasos manuales).*
+* **Instalador universal en 1 comando (Fedora, openSUSE, SteamOS o solo CLI):**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Speed17x/AutoQ/main/install-linux.sh | bash
+  # O instalar únicamente el motor CLI ligero en Rust (2.9 MB, sin GUI):
+  curl -fsSL https://raw.githubusercontent.com/Speed17x/AutoQ/main/install-linux.sh | bash -s -- --cli-only
+  ```
+* **Uso directo desde terminal con `autoq-cli` (descarga bajo demanda con atribución):**
+  ```bash
+  autoq-cli eq "Moondrop Chu 2" --target "Harman In-Ear 2019" --commit
+  autoq-cli eq "Moondrop Chu 2" --match "7Hz x Crinacle Zero 3" --out ParametricEQ.txt
+  ```
+
+### 3. Linux — Hyprland / Wayland (`linux-hyprland/`)
+Consulta la guía completa en [`linux-hyprland/README.md`](./linux-hyprland/README.md). *(Nota: los widgets de Hyprland y KDE también vienen incluidos dentro del `.AppImage` y del paquete `.deb`/`pacman`, y pueden instalarse en **1 clic** desde la pestaña **AVANZADO**).*
 ```bash
-sudo pacman -S python-pyside6 python-numpy python-requests pipewire wireplumber
+sudo pacman -S python-pyside6 pipewire wireplumber
 cd linux-hyprland
-chmod +x install.sh
 ./install.sh
 ```
 Agrega `source = ~/.local/share/autoq-hyprland/hyprland-autoq.conf` a tu `~/.config/hypr/hyprland.conf` y presiona **`SUPER + E`** para abrir el widget.
 
-### 3. Linux — KDE Plasma 6 (`linux-kde/`)
+### 4. Linux — KDE Plasma 6 (`linux-kde/`)
 Consulta la guía completa en [`linux-kde/README.md`](./linux-kde/README.md).
 ```bash
 cd linux-kde
-# Instalar el plasmoid de KDE Plasma 6
+# Instalar el plasmoid de KDE Plasma 6 (usa autoq-cli en Rust automáticamente)
 kpackagetool6 --type Plasma/Applet --install plasmoid
 # O ejecutar la app de escritorio Qt6
 ./launch.sh
 ```
 
-### 4. Linux Universal — AppImage (`linux-appimage/`)
-Consulta la guía completa en [`linux-appimage/README.md`](./linux-appimage/README.md).
+### 5. Linux Universal — AppImage (`linux-appimage/`)
+Consulta la guía completa en [`linux-appimage/README.md`](./linux-appimage/README.md). **Los widgets de Hyprland y KDE Plasma 6 ya viajan incluidos dentro del AppImage** y puedes instalarlos con 1 clic desde **AVANZADO** o por CLI:
 ```bash
 chmod +x AutoQ-x86_64.AppImage
 ./AutoQ-x86_64.AppImage                        # Abre la app completa independiente
@@ -85,7 +113,7 @@ chmod +x AutoQ-x86_64.AppImage
 ./AutoQ-x86_64.AppImage --install-kde-plasmoid      # (Opcional) Instala Plasmoid KDE Plasma 6
 ```
 
-### 5. Windows 10/11 — `BETA / SIN TESTEAR` (`windows-beta/`)
+### 6. Windows 10/11 — `BETA / SIN TESTEAR` (`windows-beta/`)
 > [!WARNING]
 > **Versión Beta sin testear en hardware Windows real.** Consulta las limitaciones y advertencias en [`windows-beta/README.md`](./windows-beta/README.md).
 
@@ -118,6 +146,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## Documentación técnica
 
+* [Roadmap del proyecto (Estrategia Rust-First)](./ROADMAP.md)
 * [Arquitectura general y flujo de datos](./docs/ARCHITECTURE.md)
 * [Especificación del protocolo USB HID (KTMicro 5-band y Moondrop 8-band)](./docs/USB_HID_PROTOCOL.md)
 
