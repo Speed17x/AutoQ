@@ -92,6 +92,9 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     viewModel = viewModel,
                     onRequestBtPermission = { requestOptionalRuntimePermissions() },
+                    onPowerOffAndExit = {
+                        viewModel.powerOffAndStopAll { finishAndRemoveTask() }
+                    },
                 )
             }
         }
@@ -122,6 +125,7 @@ private fun MoondropAppShell(
     state: MoondropUiState,
     viewModel: MoondropViewModel,
     onRequestBtPermission: () -> Unit,
+    onPowerOffAndExit: () -> Unit,
 ) {
     var activeTab by rememberSaveable { mutableStateOf(AppTab.EQ) }
 
@@ -157,6 +161,7 @@ private fun MoondropAppShell(
                     onDragEnd = viewModel::onBandDragFinished,
                     onToggleLive = viewModel::toggleLivePreview,
                     onApply = { commit -> viewModel.applyCurrentBands(commit = commit) },
+                    onPowerOffAndExit = onPowerOffAndExit,
                 )
 
                 AppTab.AUTOEQ -> AutoEqScreen(
@@ -187,6 +192,7 @@ private fun MoondropAppShell(
                     onBtSppWrite = viewModel::btSppWriteEq,
                     onBtSppFirmwarePreset = viewModel::btSppSelectFirmwarePreset,
                     onRefreshDiagnostics = { viewModel.refreshDevices(readFromHardware = false) },
+                    onPowerOffAndExit = onPowerOffAndExit,
                 )
             }
         }
@@ -264,6 +270,7 @@ fun EqScreenPreview() {
                 onDragEnd = {},
                 onToggleLive = {},
                 onApply = {},
+                onPowerOffAndExit = {},
             )
             Spacer(Modifier.height(4.dp))
         }

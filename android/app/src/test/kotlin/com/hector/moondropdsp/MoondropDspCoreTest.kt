@@ -6,6 +6,7 @@ import com.hector.moondropdsp.data.SquigSourceSpec
 import com.hector.moondropdsp.dsp.BiquadMath
 import com.hector.moondropdsp.dsp.FilterBand
 import com.hector.moondropdsp.dsp.FilterType
+import com.hector.moondropdsp.hardware.DspProtocol
 import com.hector.moondropdsp.hardware.MoondropDeviceCatalog
 import com.hector.moondropdsp.hardware.MoondropProtocolCodec
 import org.junit.Assert.assertArrayEquals
@@ -227,5 +228,123 @@ class MoondropDspCoreTest {
         assertEquals(5, chu2.maxBands)
         assertTrue(MoondropDeviceCatalog.isMoondropBluetoothName("MOONDROP Space Travel 2 Ultra"))
         assertTrue(MoondropDeviceCatalog.isMoondropBluetoothName("Golden Ages 2"))
+    }
+
+    @Test
+    fun classifiesAll8UsbDspFamiliesWithoutFalsePositives() {
+        val ja11 = MoondropDeviceCatalog.classifyUsb("/dev/usb/1", 0x2972, 0x0011, "JadeAudio JA11", true)!!
+        assertEquals(DspProtocol.FIIO, ja11.protocol)
+        assertEquals(5, ja11.maxBands)
+        assertEquals(2, ja11.reportId)
+
+        val ka17 = MoondropDeviceCatalog.classifyUsb("/dev/usb/2", 0x2972, 0x0017, "FIIO KA17", true)!!
+        assertEquals(DspProtocol.FIIO, ka17.protocol)
+        assertEquals(10, ka17.maxBands)
+
+        val pmax = MoondropDeviceCatalog.classifyUsb("/dev/usb/3", 0x3302, 0x43CC, "CrinEar Protocol Max", true)!!
+        assertEquals(DspProtocol.WALKPLAY, pmax.protocol)
+        assertEquals(10, pmax.maxBands)
+        assertEquals(101, pmax.userSlot)
+
+        val q5k = MoondropDeviceCatalog.classifyUsb("/dev/usb/4", 0x0A12, 0x4125, "Qudelix-5K USB DAC", true)!!
+        assertEquals(DspProtocol.QUDELIX_5K, q5k.protocol)
+        assertEquals(10, q5k.maxBands)
+
+        val top = MoondropDeviceCatalog.classifyUsb("/dev/usb/5", 0x152A, 0x8750, "TOPPING DX1 II", true)!!
+        assertEquals(DspProtocol.TOPPING, top.protocol)
+        assertEquals(11, top.maxBands)
+
+        val fosi = MoondropDeviceCatalog.classifyUsb("/dev/usb/6", 0x152A, 0x8700, "Fosi Audio DS3", true)!!
+        assertEquals(DspProtocol.FOSI_DS3, fosi.protocol)
+        assertEquals(8, fosi.maxBands)
+
+        val jds = MoondropDeviceCatalog.classifyUsb("/dev/usb/7", 0x152A, 0x88FA, "JDS Labs Element IV", true)!!
+        assertEquals(DspProtocol.JDS_ELEMENT, jds.protocol)
+        assertEquals(12, jds.maxBands)
+
+        // Generic 0x152A device without Topping/Fosi/Element signature must not match
+        val generic = MoondropDeviceCatalog.classifyUsb("/dev/usb/8", 0x152A, 0x1234, "Generic XMOS Audio", true)
+        assertEquals(null, generic)
+    }
+
+    @Test
+    fun fiioFosiToppingQudelixAndJdsCodecsRoundTrip() {
+        // 1. FiiO
+        val band = FilterBand(FilterType.HIGH_SHELF, 8500.0, -4.5, 1.41)
+        val fiioPkt = MoondropProtocolCodec.fiioBuildSetFilterPacket(7, 3, band)
+        assertEquals(7.toByte(), fiioPkt[0])
+        assertEquals(0xAA.toByte(), fiioPkt[1])
+        val fiioResp = fiioPkt.copyOfRange(1, fiioPkt.size)
+        fiioResp[0] = MoondropProtocolCodec.FIIO_GET_H1
+        fiioResp[1] = MoondropProtocolCodec.FIIO_GET_H2
+        val (fIdx, fBand) = MoondropProtocolCodec.fiioDecodeFilterPayload(fiioResp)!!
+        assertEquals(3, fIdx)
+        assertEquals(FilterType.HIGH_SHELF, fBand.type)
+        assertEquals(8500.0, fBand.frequency, 0.1)
+        assertEquals(-4.5, fBand.gain, 0.01)
+
+        // 2. Fosi DS3 (float32 LE)
+        val fosiBand = FilterBand(FilterType.LOW_SHELF, 105.0, -3.5, 0.707)
+        val fosiPkt = MoondropProtocolCodec.fosiEncodeBandPacket(1, 7, 2, fosiBand)
+        val (dIdx, dBand, disabled) = MoondropProtocolCodec.fosiDecodeBandPacket(fosiPkt)!!
+        assertFalse(disabled)
+        assertEquals(2, dIdx)
+        assertEquals(FilterType.LOW_SHELF, dBand.type)
+        assertEquals(105.0, dBand.frequency, 0.01)
+        assertEquals(-3.5, dBand.gain, 0.01)
+
+        // 3. Topping 16B frame + CRC16
+        val tPkt = MoondropProtocolCodec.toppingBuildFrame(MoondropProtocolCodec.TOPPING_PTYPE_WRITE_NACK, 0x9E01, 0)
+        val tParsed = MoondropProtocolCodec.toppingParseFrame(tPkt)!!
+        assertEquals(0x9E01, tParsed.cmd)
+        assertTrue(MoondropProtocolCodec.toppingCrc16Modbus(tPkt, 1) != 0)
+        val gainByte = MoondropProtocolCodec.toppingEncodeGainByte(-4.2) and 0xFF
+        val packed = 1L or (2L shl 8) or (gainByte.toLong() shl 16)
+        val (tEn, tBand) = MoondropProtocolCodec.toppingDecodePackedBand(packed, 105L, 7070L)
+        assertTrue(tEn)
+        assertEquals(FilterType.LOW_SHELF, tBand.type)
+        assertEquals(-4.2, tBand.gain, 0.01)
+
+        // 4. Qudelix-5K packet + V3 88-byte bitstream
+        val qPkt = MoondropProtocolCodec.qudelixBuildBandPacket(8, 3, band)
+        assertEquals(8.toByte(), qPkt[0])
+        assertEquals(0x80.toByte(), qPkt[2])
+        val v3 = ByteArray(88)
+        fun writeBits(bitOff: Int, n: Int, v: Int) {
+            for (i in 0 until n) {
+                if (((v ushr i) and 1) != 0) {
+                    val pos = bitOff + i
+                    v3[pos ushr 3] = (v3[pos ushr 3].toInt() or (1 shl (pos and 7))).toByte()
+                }
+            }
+        }
+        writeBits(32, 16, (-30).toShort().toInt() and 0xFFFF)
+        writeBits(64, 16, 1000)
+        writeBits(384, 4, 5) // Peak
+        writeBits(388, 10, 30) // +3.0 dB
+        writeBits(398, 14, 1024) // Q=1.0
+        val (qPre, qBands) = MoondropProtocolCodec.qudelixParseUserEqPreset(v3)
+        assertEquals(-3.0, qPre, 0.01)
+        assertEquals(10, qBands.size)
+        assertEquals(FilterType.PEAKING, qBands[0].type)
+        assertEquals(3.0, qBands[0].gain, 0.01)
+
+        // 5. JDS Labs Element IV (12-band align + JSON Describe/Update)
+        val aligned = MoondropProtocolCodec.jdsAlign12Bands(listOf(fosiBand, FilterBand(FilterType.PEAKING, 250.0, -2.0, 1.4), band))
+        assertEquals(12, aligned.size)
+        assertEquals(FilterType.LOW_SHELF, aligned[0].type)
+        assertEquals(FilterType.PEAKING, aligned[2].type)
+        assertEquals(FilterType.HIGH_SHELF, aligned[10].type)
+        val upd = MoondropProtocolCodec.jdsBuildUpdatePayload(aligned, -3.5, true)
+        assertEquals(0.toByte(), upd.last())
+        val descJson = """
+            {"Product":"JDS Labs Element IV","Configuration":{"DSP":{"Headphone":{"Preamp":{"Gain":{"Current":-3.5}},"Lowshelf 1":{"Type":{"Current":"LOWSHELF"},"Frequency":{"Current":105},"Gain":{"Current":3.2},"Q":{"Current":0.707}},"Peaking 1":{"Type":{"Current":"PEAKING"},"Frequency":{"Current":1000},"Gain":{"Current":-2.4},"Q":{"Current":1.5}},"Highshelf 1":{"Type":{"Current":"HIGHSHELF"},"Frequency":{"Current":10000},"Gain":{"Current":1.6},"Q":{"Current":0.707}}}}}}
+        """.trimIndent()
+        val (jPre, jBands) = MoondropProtocolCodec.jdsParseDescribeResponse(descJson)
+        assertEquals(-3.5, jPre, 0.01)
+        assertEquals(12, jBands.size)
+        assertEquals(3.2, jBands[0].gain, 0.01)
+        assertEquals(-2.4, jBands[2].gain, 0.01)
+        assertEquals(1.6, jBands[10].gain, 0.01)
     }
 }

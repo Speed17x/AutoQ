@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- KTMicro / Moondrop USB DSP (VID 0x31B2 = 12722: Chu 2 DSP, May, Quark 2, Jiu, CDSP) -->
+    <!-- KTMicro (VID 0x31B2 = 12722: Moondrop Chu 2/May/Quark 2, Kiwi Ears Allegro, JCALLY, Tanchjim) -->
     <usb-device vendor-id="12722" />
+    <!-- Moondrop 8-band & WalkPlay ecosystem -->
+    <usb-device vendor-id="12230" /> <!-- 0x2FC6 -->
+    <usb-device vendor-id="12064" /> <!-- 0x2F20 -->
+    <usb-device vendor-id="13058" /> <!-- 0x3302 -->
+    <usb-device vendor-id="260" />   <!-- 0x0104 -->
+    <usb-device vendor-id="283" />   <!-- 0x011B -->
+    <usb-device vendor-id="285" />   <!-- 0x011D -->
+    <usb-device vendor-id="1633" />  <!-- 0x0661 -->
+    <usb-device vendor-id="1635" />  <!-- 0x0663 -->
+    <usb-device vendor-id="1638" />  <!-- 0x0666 -->
+    <usb-device vendor-id="1890" />  <!-- 0x0762 -->
+    <usb-device vendor-id="2313" />  <!-- 0x0909 -->
+    <usb-device vendor-id="3468" />  <!-- 0x0D8C -->
+    <usb-device vendor-id="13502" /> <!-- 0x34BE -->
+    <usb-device vendor-id="13784" /> <!-- 0x35D8 -->
+    <usb-device vendor-id="13991" /> <!-- 0x36A7 -->
+    <usb-device vendor-id="14139" /> <!-- 0x373B -->
+    <usb-device vendor-id="24769" /> <!-- 0x60C1 -->
+    <usb-device vendor-id="24801" /> <!-- 0x60E1 -->
+    <usb-device vendor-id="46149" /> <!-- 0xB445 -->
+    <usb-device vendor-id="46157" /> <!-- 0xB44D -->
+    <!-- FiiO / JadeAudio / SNOWSKY (0x2972) -->
+    <usb-device vendor-id="10610" />
+    <!-- Qudelix-5K & Qualcomm FiiO (0x0A12) -->
+    <usb-device vendor-id="2578" />
+    <!-- Thesycon shared: JDS Labs Element IV (0x152A:0x88FA), Topping PEQ, Fosi Audio DS3 -->
+    <usb-device vendor-id="5418" />
 </resources>

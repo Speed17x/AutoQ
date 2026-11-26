@@ -213,8 +213,13 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
         bands: List<com.hector.moondropdsp.dsp.FilterBand>,
         enableEq: Boolean,
     ) {
+        if (!enableEq) {
+            GlobalEqService.stop(context)
+        }
         if (activeDev == null) {
-            GlobalEqService.startOrUpdate(context)
+            if (enableEq) {
+                GlobalEqService.startOrUpdate(context)
+            }
             return
         }
         when (activeDev.kind) {
@@ -228,7 +233,11 @@ class NothingEqWidgetProvider : AppWidgetProvider() {
             }
 
             DeviceKind.BT_AUDIO, DeviceKind.USB_AUDIO, DeviceKind.WIRED_AUDIO -> {
-                GlobalEqService.startOrUpdate(context)
+                if (enableEq) {
+                    GlobalEqService.startOrUpdate(context)
+                } else {
+                    GlobalEqService.stop(context)
+                }
             }
         }
     }

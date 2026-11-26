@@ -16,6 +16,9 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
   - **Fosi Audio DS3** (`crates/autoq-core/src/hid.rs`, HID Feature/Output Reports `0x77` de 8 bandas `float32 LE`).
   - **Qudelix-5K** (`crates/autoq-core/src/hid.rs`, comandos HID `SetEqBandParam 0x070F` y parser de bitstream V3 de 10 bandas).
 - Regla `udev` USB-CDC `/dev/ttyACM*` para `152a:88fa` (JDS Labs Element IV) añadida a [`packaging/udev/99-autoq-usb-dsp.rules`](./packaging/udev/99-autoq-usb-dsp.rules).
+- **Paridad total en Android (`android/`, `v2.1.0`)**:
+  - Portados los 6 protocolos faltantes a Kotlin + USB Host (`WalkPlay`, `FiiO 5/10B`, `Qudelix-5K`, `Topping DX1 II / E50 II`, `Fosi Audio DS3` y `JDS Labs Element IV` vía USB-CDC Bulk) completando las **8 familias DSP** en todas las plataformas.
+  - Añadido apagado completo del ecualizador y detención total del servicio/app (`GlobalEqService.ACTION_POWER_OFF` + botón **Apagar EQ y detener app/servicio**, liberando sesiones de `DynamicsProcessing` y removiendo la notificación foreground al apagarse).
 
 ---
 

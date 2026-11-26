@@ -38,6 +38,7 @@ class GlobalEqService : Service() {
     companion object {
         const val ACTION_APPLY = "com.hector.moondropdsp.eq.ACTION_APPLY"
         const val ACTION_STOP = "com.hector.moondropdsp.eq.ACTION_STOP"
+        const val ACTION_POWER_OFF = "com.hector.moondropdsp.eq.ACTION_POWER_OFF"
         private const val CHANNEL_ID = "moondrop_eq_service"
         private const val NOTIF_ID = 4102
         private const val EQ_BAND_COUNT = 32
@@ -73,6 +74,7 @@ class GlobalEqService : Service() {
         }
 
         fun stop(context: Context) {
+            activeInstanceRef?.get()?.shutdownServiceCompletely()
             val intent = Intent(context, GlobalEqService::class.java).setAction(ACTION_STOP)
             context.stopService(intent)
         }
@@ -125,12 +127,21 @@ class GlobalEqService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
+        if (intent?.action == ACTION_STOP || intent?.action == ACTION_POWER_OFF) {
+            if (intent.action == ACTION_POWER_OFF) {
+                store.updateSnapshot { it.copy(dspEnabled = false) }
+                com.hector.moondropdsp.widget.NothingEqWidgetProvider.updateAllWidgets(this)
+            }
+            shutdownServiceCompletely()
             return START_NOT_STICKY
         }
 
         val state = store.loadSnapshot()
+        if (!state.dspEnabled || !state.btGlobalEqEnabled) {
+            shutdownServiceCompletely()
+            return START_NOT_STICKY
+        }
+
         val notif = buildNotification(state.deviceName, state.activePresetName, state.dspEnabled)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -151,12 +162,14 @@ class GlobalEqService : Service() {
         return START_STICKY
     }
 
-    override fun onDestroy() {
-        activeInstanceRef = null
-        try {
-            unregisterReceiver(sessionReceiver)
-        } catch (_: Exception) {
-        }
+    private fun shutdownServiceCompletely() {
+        releaseAllProcessors()
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        _running.value = false
+        stopSelf()
+    }
+
+    private fun releaseAllProcessors() {
         synchronized(processorsLock) {
             processors.values.forEach { dp ->
                 try {
@@ -168,6 +181,15 @@ class GlobalEqService : Service() {
             processors.clear()
             _attachedSessionCount.value = 0
         }
+    }
+
+    override fun onDestroy() {
+        activeInstanceRef = null
+        try {
+            unregisterReceiver(sessionReceiver)
+        } catch (_: Exception) {
+        }
+        releaseAllProcessors()
         _running.value = false
         super.onDestroy()
     }
@@ -223,14 +245,17 @@ class GlobalEqService : Service() {
 
     fun refreshFromStore(updateNotification: Boolean) {
         val snap = store.loadSnapshot()
+        val bands: List<FilterBand> = snap.bands
+        val enabled = snap.dspEnabled && snap.btGlobalEqEnabled
+        if (!enabled) {
+            shutdownServiceCompletely()
+            return
+        }
         if (snap.btSessionZeroFallback) {
             attachSession(0)
         } else {
             detachSession(0)
         }
-
-        val bands: List<FilterBand> = snap.bands
-        val enabled = snap.dspEnabled && snap.btGlobalEqEnabled
         val gains = BiquadMath.combinedResponseDb(bands, eqCenterFreqs)
         val maxBoost = gains.maxOrNull()?.let { max(0.0, it) } ?: 0.0
         val preampDb = (-maxBoost).coerceIn(-18.0, 0.0).toFloat()
@@ -294,7 +319,14 @@ class GlobalEqService : Service() {
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val statusText = if (eqOn) "$presetName · EQ activo" else "EQ en pausa (bypass)"
+        val stopIntent = Intent(this, GlobalEqService::class.java).setAction(ACTION_POWER_OFF)
+        val stopPi = PendingIntent.getService(
+            this,
+            1,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val statusText = if (eqOn) "$presetName · EQ activo" else "EQ apagado"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
             .setContentTitle(deviceName.ifBlank { "AutoQ" })
@@ -302,6 +334,7 @@ class GlobalEqService : Service() {
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(pi)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Apagar EQ", stopPi)
             .build()
     }
 }

@@ -269,6 +269,13 @@ object BiquadMath {
         return total
     }
 
+    fun computeSafePreampDb(bands: List<FilterBand>): Double {
+        val freqs = logSpace(20.0, 20000.0, 96)
+        val resp = combinedResponseDb(bands, freqs)
+        val maxBoost = resp.maxOrNull()?.let { max(0.0, it) } ?: 0.0
+        return (-maxBoost).coerceIn(-12.0, 0.0)
+    }
+
     fun makeWeights(freqs: DoubleArray, maxFreqFit: Double): DoubleArray {
         val ln2 = ln(2.0)
         return DoubleArray(freqs.size) { i ->

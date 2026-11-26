@@ -59,7 +59,7 @@ data class MoondropUiState(
     val stockFrCurve: List<CurvePoint> = emptyList(),
     val targetFrCurve: List<CurvePoint> = emptyList(),
     val targetLabel: String = "",
-    val statusMessage: String = "Listo · 10 bandas virtuales (o 5/8B en USB HID)",
+    val statusMessage: String = "Listo · 8 familias USB DSP + Global EQ 32B",
     val statusError: Boolean = false,
     val busy: Boolean = false,
     // Multi-source AutoEQ + Squiglink state
@@ -358,8 +358,38 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
     fun toggleDspEnabled() {
         val next = !_uiState.value.dspEnabled
         _uiState.update { it.copy(dspEnabled = next) }
-        persistAndSyncWidget(if (next) "EQ activado" else "EQ en bypass (OFF)", false)
+        if (!next) {
+            GlobalEqService.stop(ctx)
+        }
+        persistAndSyncWidget(
+            if (next) "EQ activado" else "EQ apagado · Servicio detenido por completo",
+            false,
+        )
         applyCurrentBands(commit = false)
+    }
+
+    fun powerOffAndStopAll(onComplete: () -> Unit) {
+        livePushJob?.cancel()
+        widgetSyncJob?.cancel()
+        _uiState.update { it.copy(dspEnabled = false, busy = true) }
+        persistAndSyncWidget("Apagando EQ y deteniendo servicio...", false)
+        val st = _uiState.value
+        val dev = st.activeDevice
+        viewModelScope.launch {
+            try {
+                if (dev != null && dev.kind == DeviceKind.USB_HID && dev.hasUsbPermission) {
+                    withContext(Dispatchers.IO) {
+                        usbTransport.writeEq(dev, st.bands, commit = false, enableEq = false)
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                GlobalEqService.stop(ctx)
+                NothingEqWidgetProvider.updateAllWidgets(ctx)
+                _uiState.update { it.copy(busy = false) }
+                onComplete()
+            }
+        }
     }
 
     fun resetFlat() {
@@ -410,7 +440,12 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
                     withContext(Dispatchers.IO) {
                         usbTransport.writeEq(dev, st.bands, commit = commit, enableEq = st.dspEnabled)
                     }
-                    val msg = if (commit) {
+                    if (!st.dspEnabled) {
+                        GlobalEqService.stop(ctx)
+                    }
+                    val msg = if (!st.dspEnabled) {
+                        "EQ apagado en ${dev.displayName} · Servicio detenido"
+                    } else if (commit) {
                         "Guardado en flash de ${dev.displayName}" +
                             if (dev.disconnectsOnCommit) " (el DAC se reconectará en unos segundos)" else ""
                     } else {
@@ -437,14 +472,20 @@ class MoondropViewModel(application: Application) : AndroidViewModel(application
                             snap.copy(bands = st.bands, dspEnabled = st.dspEnabled)
                         }
                     }
-                    if (st.btGlobalEqEnabled) {
-                        GlobalEqService.startOrUpdate(ctx, liveOnlyIfRunning = quiet)
-                    }
                     val label = dev?.displayName ?: "audio del sistema"
-                    persistAndSyncWidget(
-                        if (quiet) null else "EQ (${st.bands.size}B) aplicado vía DynamicsProcessing para $label",
-                        false,
-                    )
+                    if (st.btGlobalEqEnabled && st.dspEnabled) {
+                        GlobalEqService.startOrUpdate(ctx, liveOnlyIfRunning = quiet)
+                        persistAndSyncWidget(
+                            if (quiet) null else "EQ (${st.bands.size}B) aplicado vía DynamicsProcessing para $label",
+                            false,
+                        )
+                    } else {
+                        GlobalEqService.stop(ctx)
+                        persistAndSyncWidget(
+                            if (quiet) null else "EQ apagado · Servicio detenido por completo",
+                            false,
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 setStatus(e.message ?: "Error aplicando EQ", isError = true)

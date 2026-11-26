@@ -40,5 +40,6 @@ Este documento registra el progreso y la evolución técnica del monorepo **Auto
   - **Topping DX1 II / E50 II (`crates/autoq-core/src/hid.rs`)**: HID 11 bandas L+R en tramas de 16 bytes (`0x22 0x33 ... 0x66 0x77 0x00`, broadcast `upload 0x1106` y CRC-16/MODBUS).
   - **Fosi Audio DS3 (`crates/autoq-core/src/hid.rs`)**: HID 8 bandas (`0x77` Feature/Output reports, `float32 LE`).
   - **Qudelix-5K (`crates/autoq-core/src/hid.rs`)**: HID 10 bandas (decodificador bitstream V3 de 88 bytes + `SetEqBandParam 0x070F`).
+- [x] **Paridad Android (`v2.1.0`)**: portados los 6 protocolos nuevos a Kotlin/USB Host (8 familias completas) + botón y acción de notificación para apagar el EQ y detener por completo `GlobalEqService` y la app.
 - [ ] **Publicación oficial en AUR (`paru -S autoq-bin`)**: en cuanto Arch Linux reabra el registro de cuentas nuevas en `aur.archlinux.org` (llave SSH y `PKGBUILD` + `.SRCINFO` ya preparados).
 - [ ] **Validación física en Windows 10/11 y más hardware DSP**: pruebas en hardware real para `AutoQ.exe` (`hidapi` + Equalizer APO) y las familias JDS Labs / Topping / Fosi / Qudelix / FiiO / WalkPlay.

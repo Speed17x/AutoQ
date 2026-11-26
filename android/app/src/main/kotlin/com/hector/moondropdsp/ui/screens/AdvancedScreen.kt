@@ -79,6 +79,7 @@ fun AdvancedScreen(
     onBtSppWrite: () -> Unit,
     onBtSppFirmwarePreset: (Int, String) -> Unit,
     onRefreshDiagnostics: () -> Unit,
+    onPowerOffAndExit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -262,6 +263,14 @@ fun AdvancedScreen(
                 Text(text = err, color = NothingRed, style = MaterialTheme.typography.labelSmall)
             }
 
+            Spacer(Modifier.height(10.dp))
+            NothingOutlineButton(
+                text = "⏻ Apagar EQ y detener servicio por completo",
+                onClick = onPowerOffAndExit,
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             Spacer(Modifier.height(12.dp))
             NothingSectionLabel(
                 text = "DSP Directo por Bluetooth SPP (TWS)",
@@ -375,6 +384,14 @@ fun AdvancedScreen(
                     )
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Protocolos USB DSP (v2.1.0): KTMicro 5B · Moondrop 8B · WalkPlay · FiiO 5/10B · Qudelix-5K · Topping · Fosi DS3 · JDS Element IV",
+                color = NothingSubtle,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+            )
 
             Spacer(Modifier.height(10.dp))
             NothingOutlineButton(

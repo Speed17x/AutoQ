@@ -75,6 +75,7 @@ fun EqScreen(
     onDragEnd: () -> Unit,
     onToggleLive: (Boolean) -> Unit,
     onApply: (commit: Boolean) -> Unit,
+    onPowerOffAndExit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dev = state.activeDevice
@@ -390,6 +391,13 @@ fun EqScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            NothingOutlineButton(
+                text = "⏻ Apagar EQ y detener app",
+                onClick = onPowerOffAndExit,
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         // Status footer
