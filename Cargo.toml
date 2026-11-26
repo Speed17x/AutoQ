@@ -4,6 +4,7 @@ members = [
     "crates/autoq-core",
     "crates/autoq-cli",
     "crates/autoq-gui",
+    "crates/autoq-daemon",
 ]
 
 [profile.release]

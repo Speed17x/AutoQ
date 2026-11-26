@@ -32,9 +32,13 @@ Este documento registra el progreso y la evolución técnica del monorepo **Auto
 
 ---
 
-## Fase 3 — Próximas metas (`v2.1.0+`)
+## Fase 3 — `v2.1.0`: Daemon Auto-Perfil y Protocolos DSP Avanzados — 🚀 Código Completado
 
+- [x] **Daemon residente opcional (`crates/autoq-daemon`)**: escucha eventos `udevadm monitor` + `pactl subscribe` en Linux (y sondeo ligero en Windows), aplicando automáticamente reglas por dispositivo (`~/.config/autoq/daemon_profiles.json`) o perfiles PipeWire guardados al conectar audífonos; incluye unidad `systemd --user` y gestión en 1 clic desde *Avanzado*.
+- [x] **Protocolos DSP adicionales (8 familias en total)**:
+  - **JDS Labs Element IV (`crates/autoq-core/src/jds_serial.rs`)**: USB-CDC Serial JSON (`115200 8N1`, `Describe` / `Update` 12 bandas `2 LSQ + 8 PK + 2 HSQ`).
+  - **Topping DX1 II / E50 II (`crates/autoq-core/src/hid.rs`)**: HID 11 bandas L+R en tramas de 16 bytes (`0x22 0x33 ... 0x66 0x77 0x00`, broadcast `upload 0x1106` y CRC-16/MODBUS).
+  - **Fosi Audio DS3 (`crates/autoq-core/src/hid.rs`)**: HID 8 bandas (`0x77` Feature/Output reports, `float32 LE`).
+  - **Qudelix-5K (`crates/autoq-core/src/hid.rs`)**: HID 10 bandas (decodificador bitstream V3 de 88 bytes + `SetEqBandParam 0x070F`).
 - [ ] **Publicación oficial en AUR (`paru -S autoq-bin`)**: en cuanto Arch Linux reabra el registro de cuentas nuevas en `aur.archlinux.org` (llave SSH y `PKGBUILD` + `.SRCINFO` ya preparados).
-- [ ] **Validación física en Windows 10/11 y más hardware DSP**: pruebas en hardware real para `AutoQ.exe` (`hidapi` + Equalizer APO) y familias FiiO / WalkPlay.
-- [ ] **Daemon residente opcional (`autoq-daemon`)**: escucha eventos `udev` / PipeWire y cambia automáticamente el perfil EQ al enchufar cada audífono.
-- [ ] **Protocolos adicionales**: JDS Labs Element IV (USB-CDC JSON), Topping PEQ, Fosi Audio DS3 y Qudelix-5K (Linux/Windows).
+- [ ] **Validación física en Windows 10/11 y más hardware DSP**: pruebas en hardware real para `AutoQ.exe` (`hidapi` + Equalizer APO) y las familias JDS Labs / Topping / Fosi / Qudelix / FiiO / WalkPlay.

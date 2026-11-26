@@ -2,6 +2,7 @@
 //! from `~/.config/chu2-dsp-widget` and `~/.cache/chu2-dsp-widget` to `autoq`.
 
 use crate::biquad::{flat_bands, FilterBand, FilterType};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -96,6 +97,151 @@ pub fn bt_profiles_file() -> PathBuf {
 
 pub fn win_state_file() -> PathBuf {
     config_dir().join("win_eq_state.json")
+}
+
+pub fn daemon_profiles_file() -> PathBuf {
+    config_dir().join("daemon_profiles.json")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoProfileRule {
+    pub match_pattern: String,
+    #[serde(default)]
+    pub preset_name: Option<String>,
+    #[serde(default)]
+    pub bands: Vec<FilterBand>,
+    #[serde(default = "default_true")]
+    pub enable_eq: bool,
+    #[serde(default)]
+    pub commit_flash: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaemonConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_poll_interval")]
+    pub poll_interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub auto_apply_saved_pipewire: bool,
+    #[serde(default)]
+    pub rules: Vec<AutoProfileRule>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_poll_interval() -> u64 {
+    2000
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            poll_interval_ms: default_poll_interval(),
+            auto_apply_saved_pipewire: true,
+            rules: Vec::new(),
+        }
+    }
+}
+
+pub fn load_daemon_config() -> DaemonConfig {
+    let dir = config_dir();
+    let _ = fs::create_dir_all(&dir);
+    let path = daemon_profiles_file();
+    if let Ok(txt) = fs::read_to_string(&path) {
+        if let Ok(cfg) = serde_json::from_str::<DaemonConfig>(&txt) {
+            return cfg;
+        }
+    }
+    DaemonConfig::default()
+}
+
+pub fn save_daemon_config(cfg: &DaemonConfig) -> Result<(), String> {
+    let dir = config_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = daemon_profiles_file();
+    let mut normalized = cfg.clone();
+    for r in &mut normalized.rules {
+        r.bands = r.bands.iter().map(FilterBand::clamped).collect();
+    }
+    let json = serde_json::to_string_pretty(&normalized).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+pub fn match_rule_for_device<'a>(
+    cfg: &'a DaemonConfig,
+    device_id: &str,
+    display_name: &str,
+    vid_pid: &str,
+) -> Option<&'a AutoProfileRule> {
+    let id_low = device_id.to_ascii_lowercase();
+    let name_low = display_name.to_ascii_lowercase();
+    let vp_low = vid_pid.to_ascii_lowercase();
+
+    cfg.rules.iter().find(|r| {
+        let pat = r.match_pattern.trim().to_ascii_lowercase();
+        !pat.is_empty()
+            && (id_low == pat
+                || id_low.contains(&pat)
+                || name_low.contains(&pat)
+                || (!vp_low.is_empty() && vp_low.contains(&pat)))
+    })
+}
+
+pub fn resolve_rule_bands(
+    rule: &AutoProfileRule,
+    presets: &BTreeMap<String, Vec<FilterBand>>,
+) -> Vec<FilterBand> {
+    if !rule.bands.is_empty() {
+        return rule.bands.iter().map(FilterBand::clamped).collect();
+    }
+    if let Some(pname) = &rule.preset_name {
+        if let Some(bands) = presets.get(pname) {
+            return bands.iter().map(FilterBand::clamped).collect();
+        }
+    }
+    Vec::new()
+}
+
+pub fn upsert_device_rule(
+    cfg: &mut DaemonConfig,
+    match_pattern: String,
+    preset_name: Option<String>,
+    bands: Vec<FilterBand>,
+    enable_eq: bool,
+    commit_flash: bool,
+) {
+    let pat_low = match_pattern.trim().to_ascii_lowercase();
+    let clean_bands: Vec<FilterBand> = bands.iter().map(FilterBand::clamped).collect();
+    if let Some(existing) = cfg
+        .rules
+        .iter_mut()
+        .find(|r| r.match_pattern.trim().to_ascii_lowercase() == pat_low)
+    {
+        existing.preset_name = preset_name;
+        existing.bands = clean_bands;
+        existing.enable_eq = enable_eq;
+        existing.commit_flash = commit_flash;
+    } else {
+        cfg.rules.push(AutoProfileRule {
+            match_pattern: match_pattern.trim().to_string(),
+            preset_name,
+            bands: clean_bands,
+            enable_eq,
+            commit_flash,
+        });
+    }
+}
+
+pub fn remove_device_rule(cfg: &mut DaemonConfig, match_pattern: &str) -> bool {
+    let pat_low = match_pattern.trim().to_ascii_lowercase();
+    let before = cfg.rules.len();
+    cfg.rules
+        .retain(|r| r.match_pattern.trim().to_ascii_lowercase() != pat_low);
+    cfg.rules.len() != before
 }
 
 pub fn default_presets() -> BTreeMap<String, Vec<FilterBand>> {
@@ -225,4 +371,45 @@ pub fn save_profile_bands(path: &Path, key: &str, bands: &[FilterBand]) -> Resul
     );
     let json = serde_json::to_string_pretty(&raw).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn daemon_rule_matching_and_resolution() {
+        let mut cfg = DaemonConfig::default();
+        upsert_device_rule(
+            &mut cfg,
+            "Moondrop Chu 2 DSP".to_string(),
+            Some("Harman Warm".to_string()),
+            vec![FilterBand::new(FilterType::LowShelf, 105.0, 3.0, 0.707)],
+            true,
+            false,
+        );
+        upsert_device_rule(
+            &mut cfg,
+            "152a:88fa".to_string(),
+            Some("Vocal / Ref".to_string()),
+            Vec::new(),
+            true,
+            false,
+        );
+
+        let r1 = match_rule_for_device(&cfg, "usb:/dev/hidraw0", "Moondrop Chu 2 DSP", "31b2:0113");
+        assert!(r1.is_some());
+        let presets = default_presets();
+        let b1 = resolve_rule_bands(r1.unwrap(), &presets);
+        assert_eq!(b1.len(), 1);
+        assert!((b1[0].gain - 3.0).abs() < 1e-6);
+
+        let r2 = match_rule_for_device(&cfg, "usb:/dev/ttyACM0", "JDS Labs Element IV", "152a:88fa");
+        assert!(r2.is_some());
+        let b2 = resolve_rule_bands(r2.unwrap(), &presets);
+        assert!(!b2.is_empty());
+
+        assert!(remove_device_rule(&mut cfg, "152a:88fa"));
+        assert!(match_rule_for_device(&cfg, "usb:/dev/ttyACM0", "JDS Labs Element IV", "152a:88fa").is_none());
+    }
 }

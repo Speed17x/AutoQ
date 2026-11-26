@@ -23,7 +23,10 @@ use autoq_core::autoeq::{
 use autoq_core::biquad::{
     fit_band_count, flat_bands, FilterBand, FilterType, MAX_FREQ_HZ, MAX_Q, MIN_FREQ_HZ, MIN_Q,
 };
-use autoq_core::config::{load_presets, save_presets, DEFAULT_VIRTUAL_BANDS};
+use autoq_core::config::{
+    load_daemon_config, load_presets, remove_device_rule, save_daemon_config, save_presets,
+    upsert_device_rule, DaemonConfig, DEFAULT_VIRTUAL_BANDS,
+};
 use autoq_core::hid::{self, MoondropDeviceInfo};
 use autoq_core::platform_linux::{self, PipeWireAudioDevice, PW_SINK_NAME};
 use autoq_core::platform_windows;
@@ -303,6 +306,9 @@ struct AutoQApp {
     new_preset_name: String,
     apo_text: String,
 
+    daemon_cfg: DaemonConfig,
+    daemon_active: bool,
+
     status_text: String,
     status_error: bool,
 }
@@ -358,6 +364,8 @@ impl AutoQApp {
             selected_preset,
             new_preset_name: String::new(),
             apo_text: String::new(),
+            daemon_cfg: load_daemon_config(),
+            daemon_active: ipc::is_daemon_service_active(),
             status_text: "INICIANDO MOTOR RUST...".to_string(),
             status_error: false,
         };
@@ -1770,6 +1778,115 @@ impl AutoQApp {
 
         ui.add_space(6.0);
 
+        // ── Optional Background Auto-Profile Daemon Card ──
+        sub_card_frame().show(ui, |ui| {
+            section_label(ui, "DAEMON AUTO-PERFIL (AUTOQ-DAEMON)");
+            if !cfg!(target_os = "windows") {
+                let half_w = ((ui.available_width() - 8.0) / 2.0).max(110.0);
+                ui.horizontal(|ui| {
+                    let st_txt = if self.daemon_active {
+                        "Servicio: ACTIVO"
+                    } else {
+                        "Servicio: INACTIVO"
+                    };
+                    let st_col = if self.daemon_active { PURE_WHITE } else { MUTED_GRAY };
+                    ui.label(egui::RichText::new(st_txt).size(10.5).monospace().color(st_col));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let toggle_lbl = if self.daemon_active {
+                            "DETENER DAEMON"
+                        } else {
+                            "ACTIVAR DAEMON"
+                        };
+                        let resp = if self.daemon_active {
+                            outline_pill(ui, toggle_lbl, true, Vec2::new(half_w, 26.0))
+                        } else {
+                            red_pill(ui, toggle_lbl, Vec2::new(half_w, 26.0))
+                        };
+                        if resp.clicked() {
+                            let res = if self.daemon_active {
+                                ipc::uninstall_daemon_service()
+                            } else {
+                                ipc::install_daemon_service()
+                            };
+                            match res {
+                                Ok(m) => {
+                                    self.daemon_active = ipc::is_daemon_service_active();
+                                    self.set_status(m.to_uppercase(), false);
+                                }
+                                Err(e) => self.set_status(e, true),
+                            }
+                        }
+                    });
+                });
+            }
+
+            if let Some(dev) = self.active_device().cloned() {
+                if red_pill(
+                    ui,
+                    "ASOCIAR EQ ACTUAL A ESTE DISPOSITIVO",
+                    Vec2::new(ui.available_width(), 28.0),
+                )
+                .clicked()
+                {
+                    let pattern = match &dev {
+                        RuntimeDevice::UsbHid(d) => d.display_name.clone(),
+                        RuntimeDevice::PipeWire(p) => {
+                            if !p.mac.is_empty() {
+                                p.mac.clone()
+                            } else {
+                                p.sink_name.clone()
+                            }
+                        }
+                        RuntimeDevice::WinApo { .. } => "win:equalizer_apo".to_string(),
+                    };
+                    upsert_device_rule(
+                        &mut self.daemon_cfg,
+                        pattern.clone(),
+                        Some(self.selected_preset.clone()),
+                        self.bands.clone(),
+                        self.dsp_enabled,
+                        dev.is_usb_hid(),
+                    );
+                    if let Err(e) = save_daemon_config(&self.daemon_cfg) {
+                        self.set_status(e, true);
+                    } else {
+                        self.set_status(format!("REGLA AUTO-PERFIL GUARDADA PARA {pattern}"), false);
+                    }
+                }
+            }
+
+            if !self.daemon_cfg.rules.is_empty() {
+                ui.add_space(4.0);
+                let mut to_remove: Option<String> = None;
+                for rule in &self.daemon_cfg.rules {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "• {} ({}B)",
+                                rule.match_pattern,
+                                rule.bands.len()
+                            ))
+                            .size(10.0)
+                            .monospace()
+                            .color(PURE_WHITE),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if circle_icon_btn(ui, "×", 20.0).clicked() {
+                                to_remove = Some(rule.match_pattern.clone());
+                            }
+                        });
+                    });
+                }
+                if let Some(pat) = to_remove {
+                    remove_device_rule(&mut self.daemon_cfg, &pat);
+                    let _ = save_daemon_config(&self.daemon_cfg);
+                    self.set_status(format!("REGLA ELIMINADA: {pat}"), false);
+                }
+            }
+        });
+
+        ui.add_space(6.0);
+
         // ── Diagnostics Card ──
         sub_card_frame().show(ui, |ui| {
             section_label(ui, "DIAGNÓSTICO DE AUDIO Y MOTOR RUST");
@@ -1786,7 +1903,7 @@ impl AutoQApp {
                 })
                 .unwrap_or_else(|| "Dispositivo: Ninguno conectado".to_string());
             let diag = format!(
-                "{}\nPipeWire Filter-Chain: {}\nMotor: AutoQ v{} (100% Rust Nativo · Sin Python)\nProtocolos HID: KTMicro 5B · Moondrop 8B · WalkPlay · FiiO 5/10B",
+                "{}\nPipeWire Filter-Chain: {}\nMotor: AutoQ v{} (100% Rust Nativo · Sin Python)\nProtocolos DSP: KTMicro · MD8 · WalkPlay · FiiO · Qudelix · Topping · Fosi · JDS",
                 dev_line,
                 if self.pipewire_active { "ACTIVO" } else { "INACTIVO" },
                 env!("CARGO_PKG_VERSION"),

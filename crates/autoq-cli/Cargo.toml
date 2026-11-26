@@ -1,6 +1,6 @@
 [package]
 name = "autoq-cli"
-version = "1.1.0"
+version = "2.1.0"
 edition = "2021"
 license = "GPL-2.0-or-later"
 description = "Unified ultra-fast JSON CLI & hardware telemetry backend for AutoQ (Linux, KDE Plasma, Hyprland/Waybar, Windows)"

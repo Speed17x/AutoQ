@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION="${1:-2.0.0}"
+VERSION="${1:-2.1.0}"
 VERSION="${VERSION#v}"
 ARCH="amd64"
 PKG_NAME="autoq_${VERSION}_${ARCH}"
@@ -23,13 +23,16 @@ mkdir -p "${WORK_DIR}/DEBIAN" "${OUT_DIR}"
 
 RUST_GUI="${REPO_ROOT}/target/release/autoq-gui"
 RUST_CLI="${REPO_ROOT}/target/release/autoq-cli"
-if [ ! -x "${RUST_GUI}" ] || [ ! -x "${RUST_CLI}" ]; then
-    echo "[*] Compilando autoq-gui y autoq-cli --release ..."
+RUST_DAEMON="${REPO_ROOT}/target/release/autoq-daemon"
+if [ ! -x "${RUST_GUI}" ] || [ ! -x "${RUST_CLI}" ] || [ ! -x "${RUST_DAEMON}" ]; then
+    echo "[*] Compilando autoq-gui, autoq-cli y autoq-daemon --release ..."
     (cd "${REPO_ROOT}" && cargo build --release --workspace)
 fi
 
 install -Dm755 "${RUST_GUI}" "${WORK_DIR}/usr/bin/autoq"
 install -Dm755 "${RUST_CLI}" "${WORK_DIR}/usr/bin/autoq-cli"
+install -Dm755 "${RUST_DAEMON}" "${WORK_DIR}/usr/bin/autoq-daemon"
+install -Dm644 "${REPO_ROOT}/packaging/systemd/autoq-daemon.service" "${WORK_DIR}/usr/lib/systemd/user/autoq-daemon.service"
 
 install -Dm644 "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
 install -Dm644 "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"

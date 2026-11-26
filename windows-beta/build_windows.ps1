@@ -19,6 +19,7 @@ New-Item -ItemType Directory -Path $OutDir | Out-Null
 
 Copy-Item -Path (Join-Path $Root "target\release\autoq-gui.exe") -Destination (Join-Path $OutDir "AutoQ.exe") -Force
 Copy-Item -Path (Join-Path $Root "target\release\autoq-cli.exe") -Destination (Join-Path $OutDir "autoq-cli.exe") -Force
+Copy-Item -Path (Join-Path $Root "target\release\autoq-daemon.exe") -Destination (Join-Path $OutDir "autoq-daemon.exe") -Force
 Copy-Item -Path "README.md" -Destination (Join-Path $OutDir "README.md") -Force
 
 Write-Host ""

@@ -1,8 +1,8 @@
 # Maintainer: Hector <https://github.com/Speed17x/AutoQ>
 pkgname=autoq
-pkgver=2.0.0
+pkgver=2.1.0
 pkgrel=1
-pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI)"
+pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI & autoq-daemon)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/Speed17x/AutoQ"
 license=('GPL-2.0-or-later')
@@ -34,6 +34,8 @@ package() {
     cd "AutoQ-${pkgver}"
     install -Dm755 "target/release/autoq-gui" "${pkgdir}/usr/bin/autoq"
     install -Dm755 "target/release/autoq-cli" "${pkgdir}/usr/bin/autoq-cli"
+    install -Dm755 "target/release/autoq-daemon" "${pkgdir}/usr/bin/autoq-daemon"
+    install -Dm644 "packaging/systemd/autoq-daemon.service" "${pkgdir}/usr/lib/systemd/user/autoq-daemon.service"
 
     install -Dm644 "linux-hyprland/hyprland-autoq.conf" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
     install -Dm644 "linux-hyprland/waybar-module.jsonc" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"

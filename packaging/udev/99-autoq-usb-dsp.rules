@@ -22,8 +22,10 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="60c1", MODE="0666", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="60e1", MODE="0666", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="b445", MODE="0666", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="b44d", MODE="0666", TAG+="uaccess"
-# FiiO / JadeAudio / SNOWSKY (JA11, JIEZI, KA15, KA17, BTR13, BTR17, QX13, Melody, TINY)
+# FiiO / JadeAudio / SNOWSKY / Qudelix-5K (JA11, JIEZI, KA15, KA17, BTR13, BTR17, QX13, Melody, TINY, Qudelix-5K)
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2972", MODE="0666", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0a12", MODE="0666", TAG+="uaccess"
-# Fosi Audio / Topping
+# Fosi Audio DS3 / Topping PEQ
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", MODE="0666", TAG+="uaccess"
+# JDS Labs Element IV (USB-CDC Serial)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="88fa", MODE="0666", TAG+="uaccess"

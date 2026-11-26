@@ -1041,7 +1041,9 @@ fn print_help() {
            autoq-cli <subcomando-json> [opciones]\n\n\
          Comandos interactivos de terminal:\n\
            eq               Descarga curva bajo demanda (con atribución), optimiza PEQ y exporta o aplica al hardware\n\
-           hid-scan         Lista todos los dispositivos HID conectados (VID:PID y protocolo DSP reconocido)\n\n\
+           hid-scan         Lista dispositivos HID/USB-CDC conectados (VID:PID y protocolo DSP: KTMicro, MD8, WalkPlay, FiiO, Qudelix, Topping, Fosi, JDS)\n\n\
+         Daemon residente opcional:\n\
+           autoq-daemon     Escucha eventos udev/PipeWire y aplica automáticamente perfiles EQ por audífono\n\n\
          Subcomandos JSON / Telemetría (UI, Waybar, KDE Plasma):\n\
            poll             Huella instantánea (<1ms) de presencia USB HID / Bluetooth\n\
            waybar-status    Estado JSON compacto (<5ms) para módulo Waybar\n\

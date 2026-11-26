@@ -1,6 +1,6 @@
 [package]
 name = "autoq-core"
-version = "1.1.0"
+version = "2.1.0"
 edition = "2021"
 license = "GPL-2.0-or-later"
 description = "Core DSP biquad optimizer, USB-C HID transport (KTMicro 5B & Moondrop 8B), 8-source AutoEQ engine, and OS audio backends for AutoQ"

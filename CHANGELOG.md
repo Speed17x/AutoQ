@@ -4,6 +4,21 @@ Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Pl
 
 ---
 
+## [2.1.0] — 2026-11-26
+
+### Añadido
+- **Daemon residente opcional (`crates/autoq-daemon`)**:
+  - Escucha eventos en tiempo real (`udevadm monitor` + `pactl subscribe` con *debounce* en Linux, y huella `poll_fingerprint` en Windows) para aplicar automáticamente el perfil EQ guardado en `~/.config/autoq/daemon_profiles.json` al conectar audífonos o DACs.
+  - Subcomandos `--once`, `--dry-run`, `--status`, `--install-service` y `--uninstall-service`, además de unidad [`packaging/systemd/autoq-daemon.service`](./packaging/systemd/autoq-daemon.service) e integración directa en la pestaña *Avanzado* de `autoq-gui`.
+- **4 nuevas familias DSP nativas en Rust (8 protocolos soportados en total)**:
+  - **JDS Labs Element IV** (`crates/autoq-core/src/jds_serial.rs`, USB-CDC Serial JSON de 12 bandas: `2 LowShelf + 8 Peaking + 2 HighShelf`).
+  - **Topping DX1 II / E50 II** (`crates/autoq-core/src/hid.rs`, tramas HID de 16 bytes, 11 bandas L+R y lectura multiframe `0x1106`).
+  - **Fosi Audio DS3** (`crates/autoq-core/src/hid.rs`, HID Feature/Output Reports `0x77` de 8 bandas `float32 LE`).
+  - **Qudelix-5K** (`crates/autoq-core/src/hid.rs`, comandos HID `SetEqBandParam 0x070F` y parser de bitstream V3 de 10 bandas).
+- Regla `udev` USB-CDC `/dev/ttyACM*` para `152a:88fa` (JDS Labs Element IV) añadida a [`packaging/udev/99-autoq-usb-dsp.rules`](./packaging/udev/99-autoq-usb-dsp.rules).
+
+---
+
 ## [2.0.0] — 2026-11-25
 
 ### Añadido

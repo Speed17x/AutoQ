@@ -62,11 +62,12 @@ jobs:
           ./linux-appimage/build_appimage.sh
           cp target/release/autoq-cli linux-appimage/dist/autoq-cli-linux-x86_64
           cp target/release/autoq-gui linux-appimage/dist/autoq-gui-linux-x86_64
-          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64 linux-appimage/dist/autoq-gui-linux-x86_64
+          cp target/release/autoq-daemon linux-appimage/dist/autoq-daemon-linux-x86_64
+          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64 linux-appimage/dist/autoq-gui-linux-x86_64 linux-appimage/dist/autoq-daemon-linux-x86_64
 
       - name: Build Debian/Ubuntu .deb package
         run: |
-          VER="${GITHUB_REF_NAME:-2.0.0}"
+          VER="${GITHUB_REF_NAME:-2.1.0}"
           VER="${VER#v}"
           chmod +x packaging/deb/build_deb.sh
           ./packaging/deb/build_deb.sh "${VER}"
@@ -80,6 +81,7 @@ jobs:
             linux-appimage/dist/AutoQ-x86_64.AppImage
             linux-appimage/dist/autoq-gui-linux-x86_64
             linux-appimage/dist/autoq-cli-linux-x86_64
+            linux-appimage/dist/autoq-daemon-linux-x86_64
             linux-appimage/dist/autoq_*_amd64.deb
 
   build-windows-native:
@@ -164,10 +166,10 @@ jobs:
           generate_release_notes: true
           body: |
             ### Descargas incluidas (100 % Rust Nativo en Escritorio)
-            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación 100 % nativa en Rust (`< 10 MB`, cero Python/PySide6) con instaladores 1-clic de Hyprland, KDE Plasma 6 y reglas `udev`.
-            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` multiprotocolo automáticamente).
-            - **Linux Binarios Independientes (`autoq-gui-linux-x86_64` y `autoq-cli-linux-x86_64`)**.
-            - **Windows Portable (`AutoQ-Windows-x64.zip`)**: `AutoQ.exe` + `autoq-cli.exe` compilados en Rust nativo (USB HID multiprotocolo + Equalizer APO).
+            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación 100 % nativa en Rust (`< 10 MB`, cero Python/PySide6) con instaladores 1-clic de Hyprland, KDE Plasma 6, `autoq-daemon` y reglas `udev`.
+            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` multiprotocolo y unidad `autoq-daemon.service`).
+            - **Linux Binarios Independientes (`autoq-gui-linux-x86_64`, `autoq-cli-linux-x86_64` y `autoq-daemon-linux-x86_64`)**.
+            - **Windows Portable (`AutoQ-Windows-x64.zip`)**: `AutoQ.exe` + `autoq-cli.exe` + `autoq-daemon.exe` compilados en Rust nativo (8 familias DSP + Equalizer APO).
             - **Android (`AutoQ-Android.apk`)**: app nativa Kotlin + Jetpack Compose estilo Nothing OS.
             - **Sumas de verificación (`SHA256SUMS.txt`)**.
           files: dist-release/*

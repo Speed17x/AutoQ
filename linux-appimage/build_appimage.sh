@@ -25,11 +25,12 @@ fi
 rm -rf "${BUILD_DIR}" "${DIST_DIR}"
 mkdir -p "${BUILD_DIR}" "${DIST_DIR}"
 
-# 1. Compile native Rust GUI + CLI in release mode
-echo "[*] Compilando autoq-gui y autoq-cli en modo release ..."
+# 1. Compile native Rust GUI + CLI + daemon in release mode
+echo "[*] Compilando autoq-gui, autoq-cli y autoq-daemon en modo release ..."
 (cd "${REPO_ROOT}" && cargo build --release --workspace)
 RUST_GUI="${REPO_ROOT}/target/release/autoq-gui"
 RUST_CLI="${REPO_ROOT}/target/release/autoq-cli"
+RUST_DAEMON="${REPO_ROOT}/target/release/autoq-daemon"
 
 # 2. Assemble lightweight AppDir
 mkdir -p \
@@ -42,7 +43,8 @@ mkdir -p \
 
 cp -f "${RUST_GUI}" "${APPDIR}/usr/bin/autoq"
 cp -f "${RUST_CLI}" "${APPDIR}/usr/bin/autoq-cli"
-chmod +x "${APPDIR}/usr/bin/autoq" "${APPDIR}/usr/bin/autoq-cli"
+cp -f "${RUST_DAEMON}" "${APPDIR}/usr/bin/autoq-daemon"
+chmod +x "${APPDIR}/usr/bin/autoq" "${APPDIR}/usr/bin/autoq-cli" "${APPDIR}/usr/bin/autoq-daemon"
 
 # Bundle optional desktop widgets (Hyprland + KDE Plasma 6)
 cp -f "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf" "${APPDIR}/usr/share/autoq/widgets/linux-hyprland/"
@@ -86,6 +88,10 @@ export PATH="${HERE}/usr/bin:${PATH}"
 if [ "${1:-}" = "--backend" ]; then
     shift
     exec "${HERE}/usr/bin/autoq-cli" "$@"
+fi
+if [ "${1:-}" = "--daemon" ]; then
+    shift
+    exec "${HERE}/usr/bin/autoq-daemon" "$@"
 fi
 exec "${HERE}/usr/bin/autoq" "$@"
 EOF

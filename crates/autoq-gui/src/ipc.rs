@@ -227,7 +227,8 @@ pub fn install_udev_rules() -> Result<String, String> {
         "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"2972\", MODE=\"0666\", TAG+=\"uaccess\"\n",
         "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"0a12\", MODE=\"0666\", TAG+=\"uaccess\"\n",
         "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"3302\", MODE=\"0666\", TAG+=\"uaccess\"\n",
-        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"152a\", MODE=\"0666\", TAG+=\"uaccess\"\n"
+        "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"152a\", MODE=\"0666\", TAG+=\"uaccess\"\n",
+        "SUBSYSTEM==\"tty\", ATTRS{idVendor}==\"152a\", ATTRS{idProduct}==\"88fa\", MODE=\"0666\", TAG+=\"uaccess\"\n"
     );
     let tmp = env::temp_dir().join("99-autoq-usb-dsp.rules");
     fs::write(&tmp, rules).map_err(|e| e.to_string())?;
@@ -245,4 +246,76 @@ pub fn install_udev_rules() -> Result<String, String> {
     } else {
         Err("Instalación de reglas udev cancelada o fallida.".to_string())
     }
+}
+
+pub fn is_daemon_service_active() -> bool {
+    if cfg!(target_os = "windows") {
+        return false;
+    }
+    Command::new("systemctl")
+        .args(["--user", "is-active", "autoq-daemon.service"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
+        .unwrap_or(false)
+}
+
+pub fn install_daemon_service() -> Result<String, String> {
+    if cfg!(target_os = "windows") {
+        return Err("Solo disponible en Linux (systemd user service).".to_string());
+    }
+    let home = home_dir();
+    let svc_dir = home.join(".config/systemd/user");
+    fs::create_dir_all(&svc_dir).map_err(|e| e.to_string())?;
+
+    let exec_line = if let Some(appimage) = env::var("APPIMAGE").ok().filter(|s| !s.is_empty()) {
+        format!("\"{appimage}\" --daemon")
+    } else if let Some(daemon_bin) = find_exe_sibling("autoq-daemon") {
+        format!("\"{}\"", daemon_bin.display())
+    } else {
+        "autoq-daemon".to_string()
+    };
+
+    let unit = format!(
+        "[Unit]\n\
+         Description=AutoQ Background Auto-Profile Daemon (udev + PipeWire)\n\
+         After=pipewire.service pipewire-pulse.service\n\n\
+         [Service]\n\
+         Type=simple\n\
+         ExecStart={exec_line}\n\
+         Restart=on-failure\n\
+         RestartSec=3\n\n\
+         [Install]\n\
+         WantedBy=default.target\n"
+    );
+    let unit_path = svc_dir.join("autoq-daemon.service");
+    fs::write(&unit_path, unit).map_err(|e| e.to_string())?;
+
+    let _ = Command::new("systemctl")
+        .args(["--user", "daemon-reload"])
+        .status();
+    let st = Command::new("systemctl")
+        .args(["--user", "enable", "--now", "autoq-daemon.service"])
+        .status()
+        .map_err(|e| format!("systemctl --user falló: {e}"))?;
+    if st.success() {
+        Ok("Daemon autoq-daemon activado en segundo plano (systemd --user).".to_string())
+    } else {
+        Err("systemctl --user devolvió error al activar autoq-daemon.".to_string())
+    }
+}
+
+pub fn uninstall_daemon_service() -> Result<String, String> {
+    if cfg!(target_os = "windows") {
+        return Err("Solo disponible en Linux.".to_string());
+    }
+    let _ = Command::new("systemctl")
+        .args(["--user", "disable", "--now", "autoq-daemon.service"])
+        .status();
+    let unit_path = home_dir().join(".config/systemd/user/autoq-daemon.service");
+    let _ = fs::remove_file(&unit_path);
+    let _ = Command::new("systemctl")
+        .args(["--user", "daemon-reload"])
+        .status();
+    Ok("Daemon autoq-daemon detenido y deshabilitado.".to_string())
 }
