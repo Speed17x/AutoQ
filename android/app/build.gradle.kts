@@ -15,10 +15,29 @@ android {
     versionName = "2.1.1"
   }
 
+  signingConfigs {
+    create("release") {
+      val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+      val ksPass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+      val kAlias = System.getenv("ANDROID_KEY_ALIAS")
+      val kPass = System.getenv("ANDROID_KEY_PASSWORD")
+      if (!ksPath.isNullOrBlank() && !ksPass.isNullOrBlank() && !kAlias.isNullOrBlank() && !kPass.isNullOrBlank()) {
+        storeFile = file(ksPath)
+        storePassword = ksPass
+        keyAlias = kAlias
+        keyPassword = kPass
+      }
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      val releaseSigning = signingConfigs.findByName("release")
+      if (releaseSigning?.storeFile != null) {
+        signingConfig = releaseSigning
+      }
     }
   }
   compileOptions {
