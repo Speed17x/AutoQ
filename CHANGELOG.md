@@ -4,6 +4,19 @@ Todos los cambios relevantes de **Trivium** (Linux, Android, Windows, macOS expe
 
 ---
 
+## [3.0.1] — 2026-11-26
+
+### Añadido / Cambiado
+- **Adaptación automática de idioma (`English` / `Español`)**:
+  - Escritorio (`trivium-gui`): nuevo módulo `i18n.rs` con detección automática del locale del sistema (`LC_ALL`, `LC_MESSAGES`, `LANG`) y selector `AUTO / ENGLISH / ESPAÑOL` en *Avanzado* (`ui_settings.json`).
+  - Android: `UiLang.kt` + recursos separados `values/strings.xml` (EN) y `values-es/strings.xml` (ES) según el idioma del dispositivo.
+  - Documentación bilingüe con [`README.md`](./README.md) en inglés, [`README.es.md`](./README.es.md) en español y [`docs/HARDWARE_MATRIX.md`](./docs/HARDWARE_MATRIX.md) en inglés.
+- **CI / Release & Limpieza**:
+  - Actualizado el runner experimental macOS ARM64 a `macos-15` (`continue-on-error: true`) en [`.github/workflows/build-releases.yml`](./.github/workflows/build-releases.yml).
+  - Retirado empaquetado AUR hasta reapertura de registros y añadidos tests *golden-frame* en [`crates/trivium-core/src/hid_tests.rs`](./crates/trivium-core/src/hid_tests.rs).
+
+---
+
 ## [3.0.0] — 2026-11-26
 
 ### Añadido / Cambiado

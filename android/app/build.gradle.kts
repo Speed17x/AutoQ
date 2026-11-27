@@ -11,8 +11,8 @@ android {
     applicationId = "com.speed17x.trivium"
     minSdk = 28
     targetSdk = 36
-    versionCode = 7
-    versionName = "3.0.0"
+    versionCode = 8
+    versionName = "3.0.1"
   }
 
   signingConfigs {
