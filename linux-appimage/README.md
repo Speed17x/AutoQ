@@ -1,28 +1,28 @@
-# AutoQ — Linux AppImage (Universal 100 % Rust)
+# Trivium — Linux AppImage (Universal Nativo Rust)
 
-Empaquetado portable **AppImage (`x86_64`, `< 10 MB`)** de AutoQ para cualquier distribución de Linux (Ubuntu, Fedora, Arch, CachyOS, Mint, Debian, etc.) y cualquier entorno de escritorio (GNOME, KDE, Hyprland, XFCE, Sway).
+Empaquetado portable **AppImage (`x86_64`, `< 10 MB`)** de Trivium para cualquier distribución de Linux (Ubuntu, Fedora, Arch, CachyOS, Mint, Debian, etc.) y cualquier entorno de escritorio (GNOME, KDE, Hyprland, XFCE, Sway).
 
 ## Qué incluye
-- **App de escritorio 100 % nativa en Rust (`autoq-gui`)** con gráfica interactiva PEQ/FR, comparación A/B, control de Preamp/Headroom, 3 temas modulares y exportadores multi-formato.
-- **Motor CLI (`autoq-cli`)** y **daemon opcional (`autoq-daemon`)** integrados en el mismo AppImage (`--backend` / `--daemon`).
+- **App de escritorio nativa en Rust (`trivium`)** con gráfica interactiva PEQ/FR, comparación A/B, control de Preamp + Salida (`-30..+12 dB`), 3 temas modulares y exportadores multi-formato.
+- **Motor CLI (`trivium-cli`)** y **daemon opcional (`trivium-daemon`)** integrados en el mismo AppImage (`--backend` / `--daemon`).
 - **Instaladores opcionales de widgets integrados**:
   - `--install-hyprland-widget`: instala el widget flotante de Hyprland + configuración de Waybar.
-  - `--install-kde-plasmoid`: instala el Plasmoid nativo de KDE Plasma 6 (`org.hector.moondropeq`).
+  - `--install-kde-plasmoid`: instala el Plasmoid nativo de KDE Plasma 6 (`org.speed17x.trivium`).
 
 ## Uso del AppImage
 
 ```bash
-chmod +x AutoQ-x86_64.AppImage
+chmod +x Trivium-x86_64.AppImage
 
 # Abrir la aplicación completa (funciona en cualquier escritorio)
-./AutoQ-x86_64.AppImage
+./Trivium-x86_64.AppImage
 
 # Abrir en modo widget compacto flotante
-./AutoQ-x86_64.AppImage --widget
+./Trivium-x86_64.AppImage --widget
 
 # (Opcional) Instalar widget de Hyprland o Plasmoid KDE 6
-./AutoQ-x86_64.AppImage --install-hyprland-widget
-./AutoQ-x86_64.AppImage --install-kde-plasmoid
+./Trivium-x86_64.AppImage --install-hyprland-widget
+./Trivium-x86_64.AppImage --install-kde-plasmoid
 ```
 
 ## Cómo compilar el AppImage localmente
@@ -35,5 +35,5 @@ chmod +x build_appimage.sh
 ./build_appimage.sh
 ```
 
-El archivo final se genera en `linux-appimage/dist/AutoQ-x86_64.AppImage`.
+El archivo final se genera en `linux-appimage/dist/Trivium-x86_64.AppImage`.
 También se compila automáticamente en **GitHub Actions** ([`.github/workflows/build-releases.yml`](../.github/workflows/build-releases.yml)).

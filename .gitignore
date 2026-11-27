@@ -10,8 +10,11 @@ venv/
 /target/
 linux-kde/moondrop_poll
 linux-hyprland/backend/autoq-cli
+linux-hyprland/backend/trivium-cli
 linux-kde/autoq-cli
+linux-kde/trivium-cli
 windows-beta/backend/autoq-cli.exe
+windows-beta/backend/trivium-cli.exe
 *.o
 *.so
 

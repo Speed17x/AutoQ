@@ -1,20 +1,20 @@
 // ============================================================================
-// Módulo opcional de Waybar para AutoQ (estilo Nothing OS)
+// Módulo opcional de Waybar para Trivium
 // ============================================================================
-// 1. Agrega "custom/autoq" en "modules-right" de ~/.config/waybar/config.jsonc
+// 1. Agrega "custom/trivium" en "modules-right" de ~/.config/waybar/config.jsonc
 // 2. Pega este bloque dentro de ~/.config/waybar/config.jsonc:
 {
-  "custom/autoq": {
-    "exec": "~/.local/bin/autoq-cli waybar-status",
+  "custom/trivium": {
+    "exec": "~/.local/bin/trivium-cli waybar-status",
     "return-type": "json",
     "interval": 6,
-    "on-click": "~/.local/bin/autoq-widget --toggle",
-    "on-click-right": "~/.local/bin/autoq-widget --full"
+    "on-click": "~/.local/bin/trivium-widget --toggle",
+    "on-click-right": "~/.local/bin/trivium-widget --full"
   }
 }
 
 // 3. Estilo opcional para ~/.config/waybar/style.css:
-// #custom-autoq {
+// #custom-trivium {
 //     background-color: #141517;
 //     color: #F5F5F5;
 //     border: 1px solid #2B2E36;
@@ -24,9 +24,9 @@
 //     font-family: "JetBrains Mono", monospace;
 //     font-size: 11px;
 // }
-// #custom-autoq.active {
-//     border-color: #D71921;
+// #custom-trivium.active {
+//     border-color: #3482FF;
 // }
-// #custom-autoq.bypass, #custom-autoq.offline {
+// #custom-trivium.bypass, #custom-trivium.offline {
 //     color: #8E929B;
 // }

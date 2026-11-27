@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Universal 1-line Linux installer for AutoQ (Rust CLI + Desktop + Daemon)
+# Universal 1-line Linux installer for Trivium (Rust CLI + Desktop + Daemon)
 # Verifies every downloaded binary against the release SHA256SUMS.txt.
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Speed17x/AutoQ/main/install-linux.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/Speed17x/AutoQ/main/install-linux.sh | bash -s -- --cli-only
+#   curl -fsSL https://raw.githubusercontent.com/Speed17x/Trivium/main/install-linux.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Speed17x/Trivium/main/install-linux.sh | bash -s -- --cli-only
 
-REPO="Speed17x/AutoQ"
+REPO="Speed17x/Trivium"
 BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
-OPT_DIR="${HOME}/.local/share/autoq"
+OPT_DIR="${HOME}/.local/share/trivium"
 CLI_ONLY=0
 
 for arg in "$@"; do
@@ -41,7 +41,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 mkdir -p "${BIN_DIR}" "${APP_DIR}" "${OPT_DIR}"
 
 echo "======================================================"
-echo "  AutoQ — Instalador rápido para Linux (${ARCH})"
+echo "  Trivium — Instalador rápido para Linux (${ARCH})"
 echo "======================================================"
 
 API_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
@@ -82,49 +82,49 @@ download_and_verify() {
     return 0
 }
 
-CLI_ASSET="autoq-cli-linux-${ARCH}"
-if download_and_verify "${CLI_ASSET}" "${BIN_DIR}/autoq-cli"; then
-    echo "[OK] Motor Rust CLI verificado e instalado en: ${BIN_DIR}/autoq-cli"
+CLI_ASSET="trivium-cli-linux-${ARCH}"
+if download_and_verify "${CLI_ASSET}" "${BIN_DIR}/trivium-cli"; then
+    echo "[OK] Motor Rust CLI verificado e instalado en: ${BIN_DIR}/trivium-cli"
 else
     echo "[i] Binario ${CLI_ASSET} no disponible en ${TAG}."
 fi
 
-DAEMON_ASSET="autoq-daemon-linux-${ARCH}"
-if download_and_verify "${DAEMON_ASSET}" "${BIN_DIR}/autoq-daemon"; then
-    echo "[OK] Daemon auto-perfil verificado e instalado en: ${BIN_DIR}/autoq-daemon"
+DAEMON_ASSET="trivium-daemon-linux-${ARCH}"
+if download_and_verify "${DAEMON_ASSET}" "${BIN_DIR}/trivium-daemon"; then
+    echo "[OK] Daemon auto-perfil verificado e instalado en: ${BIN_DIR}/trivium-daemon"
 fi
 
 if [ "${CLI_ONLY}" -eq 0 ]; then
     if [ "${ARCH}" = "x86_64" ]; then
-        echo "[*] Descargando y verificando AutoQ-x86_64.AppImage ..."
-        if download_and_verify "AutoQ-x86_64.AppImage" "${OPT_DIR}/AutoQ-x86_64.AppImage"; then
-            ln -sf "${OPT_DIR}/AutoQ-x86_64.AppImage" "${BIN_DIR}/autoq"
+        echo "[*] Descargando y verificando Trivium-x86_64.AppImage ..."
+        if download_and_verify "Trivium-x86_64.AppImage" "${OPT_DIR}/Trivium-x86_64.AppImage"; then
+            ln -sf "${OPT_DIR}/Trivium-x86_64.AppImage" "${BIN_DIR}/trivium"
         else
-            echo "[ERROR] No se encontró AutoQ-x86_64.AppImage en ${TAG}." >&2
+            echo "[ERROR] No se encontró Trivium-x86_64.AppImage en ${TAG}." >&2
             exit 1
         fi
     else
-        echo "[*] Descargando y verificando autoq-gui-linux-${ARCH} ..."
-        if ! download_and_verify "autoq-gui-linux-${ARCH}" "${BIN_DIR}/autoq"; then
-            echo "[ERROR] No se encontró autoq-gui-linux-${ARCH} en ${TAG}." >&2
+        echo "[*] Descargando y verificando trivium-linux-${ARCH} ..."
+        if ! download_and_verify "trivium-linux-${ARCH}" "${BIN_DIR}/trivium"; then
+            echo "[ERROR] No se encontró trivium-linux-${ARCH} en ${TAG}." >&2
             exit 1
         fi
     fi
 
-    cat > "${APP_DIR}/autoq.desktop" << EOF
+    cat > "${APP_DIR}/trivium.desktop" << EOF
 [Desktop Entry]
 Type=Application
-Name=AutoQ
+Name=Trivium
 GenericName=Parametric EQ & AutoEQ
 Comment=Universal Parametric EQ & AutoEQ Suite (100% Native Rust)
-Exec=${BIN_DIR}/autoq
+Exec=${BIN_DIR}/trivium
 Icon=audio-headphones
 Terminal=false
 Categories=AudioVideo;Audio;Mixer;
-StartupWMClass=autoq-gui
+StartupWMClass=trivium
 EOF
-    echo "[OK] App de escritorio lista: ejecuta 'autoq' (o búscala en tu menú de aplicaciones)."
-    echo "     Activa las reglas USB udev (0660 + uaccess) y autoq-daemon desde la pestaña AVANZADO."
+    echo "[OK] App de escritorio lista: ejecuta 'trivium' (o búscala en tu menú de aplicaciones)."
+    echo "     Activa las reglas USB udev (0660 + uaccess) y trivium-daemon desde la pestaña AVANZADO."
 fi
 
 case ":${PATH}:" in

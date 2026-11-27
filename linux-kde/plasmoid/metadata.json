@@ -6,12 +6,12 @@
             }
         ],
         "Category": "Multimedia",
-        "Description": "Ecualizador paramétrico universal USB DSP, Bluetooth y PipeWire (5-10 bandas) con AutoEq + 7 bases Squiglink",
+        "Description": "Ecualizador paramétrico universal USB DSP, BLE GATT, Bluetooth y PipeWire (5-12 bandas) con AutoEq + Squiglink",
         "Icon": "audio-headphones",
-        "Id": "org.hector.moondropeq",
+        "Id": "org.speed17x.trivium",
         "License": "GPL-2.0+",
-        "Name": "AutoQ",
-        "Version": "2.0"
+        "Name": "Trivium",
+        "Version": "3.0"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0",

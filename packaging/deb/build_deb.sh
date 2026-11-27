@@ -1,51 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a native Rust Debian/Ubuntu package (`autoq_<version>_amd64.deb`)
-# Installable via: sudo apt install ./autoq_2.2.0_amd64.deb
+# Build a native Rust Debian/Ubuntu package (`trivium_<version>_amd64.deb`)
+# Installable via: sudo apt install ./trivium_3.0.0_amd64.deb
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION="${1:-2.2.0}"
+VERSION="${1:-3.0.0}"
 VERSION="${VERSION#v}"
 ARCH="amd64"
-PKG_NAME="autoq_${VERSION}_${ARCH}"
+PKG_NAME="trivium_${VERSION}_${ARCH}"
 WORK_DIR="${SCRIPT_DIR}/build/${PKG_NAME}"
 OUT_DIR="${SCRIPT_DIR}/dist"
 
 echo "============================================================"
-echo "  AutoQ — Generador de paquete .deb 100% Rust (${VERSION})"
+echo "  Trivium — Generador de paquete .deb 100% Rust (${VERSION})"
 echo "============================================================"
 
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}/DEBIAN" "${OUT_DIR}"
 
-RUST_GUI="${REPO_ROOT}/target/release/autoq-gui"
-RUST_CLI="${REPO_ROOT}/target/release/autoq-cli"
-RUST_DAEMON="${REPO_ROOT}/target/release/autoq-daemon"
+RUST_GUI="${REPO_ROOT}/target/release/trivium"
+RUST_CLI="${REPO_ROOT}/target/release/trivium-cli"
+RUST_DAEMON="${REPO_ROOT}/target/release/trivium-daemon"
 if [ ! -x "${RUST_GUI}" ] || [ ! -x "${RUST_CLI}" ] || [ ! -x "${RUST_DAEMON}" ]; then
-    echo "[*] Compilando autoq-gui, autoq-cli y autoq-daemon --release ..."
+    echo "[*] Compilando trivium, trivium-cli y trivium-daemon --release ..."
     (cd "${REPO_ROOT}" && cargo build --release --workspace)
 fi
 
-install -Dm755 "${RUST_GUI}" "${WORK_DIR}/usr/bin/autoq"
-install -Dm755 "${RUST_CLI}" "${WORK_DIR}/usr/bin/autoq-cli"
-install -Dm755 "${RUST_DAEMON}" "${WORK_DIR}/usr/bin/autoq-daemon"
-install -Dm644 "${REPO_ROOT}/packaging/systemd/autoq-daemon.service" "${WORK_DIR}/usr/lib/systemd/user/autoq-daemon.service"
+install -Dm755 "${RUST_GUI}" "${WORK_DIR}/usr/bin/trivium"
+install -Dm755 "${RUST_CLI}" "${WORK_DIR}/usr/bin/trivium-cli"
+install -Dm755 "${RUST_DAEMON}" "${WORK_DIR}/usr/bin/trivium-daemon"
+install -Dm644 "${REPO_ROOT}/packaging/systemd/trivium-daemon.service" "${WORK_DIR}/usr/lib/systemd/user/trivium-daemon.service"
 
-install -Dm644 "${REPO_ROOT}/linux-hyprland/hyprland-autoq.conf" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
-install -Dm644 "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc" "${WORK_DIR}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"
-mkdir -p "${WORK_DIR}/usr/share/autoq/widgets/linux-kde"
-cp -a "${REPO_ROOT}/linux-kde/plasmoid" "${WORK_DIR}/usr/share/autoq/widgets/linux-kde/"
+install -Dm644 "${REPO_ROOT}/linux-hyprland/hyprland-trivium.conf" "${WORK_DIR}/usr/share/trivium/widgets/linux-hyprland/hyprland-trivium.conf"
+install -Dm644 "${REPO_ROOT}/linux-hyprland/waybar-module.jsonc" "${WORK_DIR}/usr/share/trivium/widgets/linux-hyprland/waybar-module.jsonc"
+mkdir -p "${WORK_DIR}/usr/share/trivium/widgets/linux-kde"
+cp -a "${REPO_ROOT}/linux-kde/plasmoid" "${WORK_DIR}/usr/share/trivium/widgets/linux-kde/"
 
-install -Dm644 "${REPO_ROOT}/linux-appimage/autoq.desktop" "${WORK_DIR}/usr/share/applications/autoq.desktop"
-install -Dm644 "${REPO_ROOT}/linux-appimage/autoq.svg" "${WORK_DIR}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
-install -Dm644 "${REPO_ROOT}/packaging/udev/99-autoq-usb-dsp.rules" "${WORK_DIR}/lib/udev/rules.d/99-autoq-usb-dsp.rules"
+install -Dm644 "${REPO_ROOT}/linux-appimage/trivium.desktop" "${WORK_DIR}/usr/share/applications/trivium.desktop"
+install -Dm644 "${REPO_ROOT}/linux-appimage/trivium.svg" "${WORK_DIR}/usr/share/icons/hicolor/scalable/apps/trivium.svg"
+install -Dm644 "${REPO_ROOT}/packaging/udev/99-trivium-usb-dsp.rules" "${WORK_DIR}/lib/udev/rules.d/99-trivium-usb-dsp.rules"
 
 INSTALLED_KB="$(du -sk "${WORK_DIR}/usr" "${WORK_DIR}/lib" | awk '{s+=$1} END {print s}')"
 
 cat > "${WORK_DIR}/DEBIAN/control" << EOF
-Package: autoq
+Package: trivium
 Version: ${VERSION}
 Section: sound
 Priority: optional
@@ -53,12 +53,12 @@ Architecture: ${ARCH}
 Installed-Size: ${INSTALLED_KB}
 Depends: libc6, libgcc-s1, libgl1, libxkbcommon0
 Recommends: pipewire, pulseaudio-utils
-Maintainer: Speed17x <https://github.com/Speed17x/AutoQ>
-Homepage: https://github.com/Speed17x/AutoQ
+Maintainer: Speed17x <https://github.com/Speed17x/Trivium>
+Homepage: https://github.com/Speed17x/Trivium
 Description: Universal Parametric EQ & AutoEQ Suite (Native Rust)
- Native Rust desktop app (autoq), daemon (autoq-daemon) and CLI (autoq-cli).
- Supports multiprotocol USB-C HID/Serial DSP (KTMicro 5B, Moondrop 8B,
- WalkPlay, FiiO 5/10B, Qudelix-5K, Topping, Fosi DS3, JDS Element IV),
+ Native Rust desktop app (trivium), daemon (trivium-daemon) and CLI (trivium-cli).
+ Supports 9 USB-C HID/Serial DSP families (KTMicro, Moondrop 8B, WalkPlay,
+ FiiO, Qudelix-5K, Topping, Fosi DS3, JDS Element IV, Conexant), BLE GATT PEQ,
  10-band PipeWire PEQ, and 14,500+ AutoEq & Squiglink headphone curves.
 EOF
 

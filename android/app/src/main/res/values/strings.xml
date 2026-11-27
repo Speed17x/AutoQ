@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AutoQ</string>
-    <string name="widget_name">AutoQ · Nothing</string>
-    <string name="widget_description">Control rápido y curva EQ estilo Nothing OS con AutoEQ para cualquier audífono Bluetooth, USB-C o cableado.</string>
+    <string name="app_name">Trivium</string>
+    <string name="widget_name">Trivium EQ</string>
+    <string name="widget_description">Trivium — Control rápido de EQ paramétrico y AutoEQ para cualquier audífono Bluetooth, BLE GATT, USB-C o 3.5mm.</string>
 </resources>

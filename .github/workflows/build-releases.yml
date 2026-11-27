@@ -1,4 +1,4 @@
-name: Build AutoQ Releases (100% Rust Linux + Windows + Android APK)
+name: Build Trivium Releases (Linux + Windows + macOS ARM64 + Android APK)
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
         run: cargo test --workspace
 
   build-linux-packages:
-    name: Linux 100% Rust (AppImage + DEB + Binaries)
+    name: Linux Rust x64 (AppImage + DEB + Binaries)
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
     runs-on: ubuntu-24.04
@@ -56,39 +56,39 @@ jobs:
       - name: Rust Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Build 100% Rust AppImage, CLI & GUI binaries
+      - name: Build AppImage, CLI & GUI binaries
         run: |
           chmod +x linux-appimage/build_appimage.sh
           ./linux-appimage/build_appimage.sh
-          cp target/release/autoq-cli linux-appimage/dist/autoq-cli-linux-x86_64
-          cp target/release/autoq-gui linux-appimage/dist/autoq-gui-linux-x86_64
-          cp target/release/autoq-daemon linux-appimage/dist/autoq-daemon-linux-x86_64
-          chmod +x linux-appimage/dist/autoq-cli-linux-x86_64 linux-appimage/dist/autoq-gui-linux-x86_64 linux-appimage/dist/autoq-daemon-linux-x86_64
+          cp target/release/trivium-cli linux-appimage/dist/trivium-cli-linux-x86_64
+          cp target/release/trivium linux-appimage/dist/trivium-linux-x86_64
+          cp target/release/trivium-daemon linux-appimage/dist/trivium-daemon-linux-x86_64
+          chmod +x linux-appimage/dist/trivium-cli-linux-x86_64 linux-appimage/dist/trivium-linux-x86_64 linux-appimage/dist/trivium-daemon-linux-x86_64
 
       - name: Build Debian/Ubuntu .deb package
         run: |
           if [[ "${GITHUB_REF_NAME:-}" == v* ]]; then
             VER="${GITHUB_REF_NAME#v}"
           else
-            VER="$(grep -m1 '^version = ' crates/autoq-core/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
+            VER="$(grep -m1 '^version = ' crates/trivium-core/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')"
           fi
           chmod +x packaging/deb/build_deb.sh
           ./packaging/deb/build_deb.sh "${VER}"
-          cp packaging/deb/dist/autoq_*_amd64.deb linux-appimage/dist/
+          cp packaging/deb/dist/trivium_*_amd64.deb linux-appimage/dist/
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Linux-Packages
+          name: Trivium-Linux-Packages
           path: |
-            linux-appimage/dist/AutoQ-x86_64.AppImage
-            linux-appimage/dist/autoq-gui-linux-x86_64
-            linux-appimage/dist/autoq-cli-linux-x86_64
-            linux-appimage/dist/autoq-daemon-linux-x86_64
-            linux-appimage/dist/autoq_*_amd64.deb
+            linux-appimage/dist/Trivium-x86_64.AppImage
+            linux-appimage/dist/trivium-linux-x86_64
+            linux-appimage/dist/trivium-cli-linux-x86_64
+            linux-appimage/dist/trivium-daemon-linux-x86_64
+            linux-appimage/dist/trivium_*_amd64.deb
 
   build-linux-arm64:
-    name: Linux ARM64 100% Rust (Binaries)
+    name: Linux ARM64 Rust (Binaries)
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
     runs-on: ubuntu-24.04-arm
@@ -111,19 +111,60 @@ jobs:
         run: |
           cargo build --release --workspace
           mkdir -p dist-arm64
-          cp target/release/autoq-cli dist-arm64/autoq-cli-linux-aarch64
-          cp target/release/autoq-gui dist-arm64/autoq-gui-linux-aarch64
-          cp target/release/autoq-daemon dist-arm64/autoq-daemon-linux-aarch64
+          cp target/release/trivium-cli dist-arm64/trivium-cli-linux-aarch64
+          cp target/release/trivium dist-arm64/trivium-linux-aarch64
+          cp target/release/trivium-daemon dist-arm64/trivium-daemon-linux-aarch64
           chmod +x dist-arm64/*
 
       - name: Upload Linux ARM64 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Linux-ARM64
+          name: Trivium-Linux-ARM64
           path: dist-arm64/*
 
+  build-macos-arm64:
+    name: macOS ARM64 Experimental (Binaries)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: [rust-tests]
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build macOS ARM64 binaries & test workspace
+        run: |
+          cargo test --workspace
+          cargo build --release --workspace
+          mkdir -p dist-macos/Trivium-macOS-arm64
+          cp target/release/trivium dist-macos/Trivium-macOS-arm64/trivium
+          cp target/release/trivium-cli dist-macos/Trivium-macOS-arm64/trivium-cli
+          cp target/release/trivium-daemon dist-macos/Trivium-macOS-arm64/trivium-daemon
+          chmod +x dist-macos/Trivium-macOS-arm64/*
+          cat > dist-macos/Trivium-macOS-arm64/README-macOS.txt << 'EOF'
+          Trivium — Compilación Experimental para macOS Apple Silicon (ARM64)
+
+          Esta compilación no está firmada con certificado Apple Developer.
+          Si Gatekeeper bloquea la ejecución tras descomprimir, ejecuta:
+            xattr -dr com.apple.quarantine ./trivium ./trivium-cli ./trivium-daemon
+          Soporta los 9 protocolos USB-C HID/CDC de hardware DSP, exportación multi-formato
+          (APO, EasyEffects, CamillaDSP, Wavelet) y `trivium-cli hid-scan --dump-descriptors`.
+          EOF
+          (cd dist-macos && zip -r Trivium-macOS-arm64.zip Trivium-macOS-arm64)
+
+      - name: Upload macOS ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trivium-macOS-arm64
+          path: dist-macos/Trivium-macOS-arm64.zip
+
   build-windows-native:
-    name: Windows Installer & Portable x64 (100% Rust)
+    name: Windows Installer & Portable x64 (Rust)
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
     runs-on: windows-latest
@@ -144,7 +185,7 @@ jobs:
             choco install innosetup -y --no-progress
           }
 
-      - name: Build native AutoQ binaries & AutoQ-Setup-x64.exe
+      - name: Build native Trivium binaries & Trivium-Setup-x64.exe
         shell: pwsh
         working-directory: windows-beta
         env:
@@ -152,7 +193,7 @@ jobs:
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           if ($env:WINDOWS_CERT_BASE64) {
-            $pfxPath = Join-Path $env:RUNNER_TEMP "autoq-win.pfx"
+            $pfxPath = Join-Path $env:RUNNER_TEMP "trivium-win.pfx"
             [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
             $env:WINDOWS_CERT_PFX = $pfxPath
           }
@@ -161,15 +202,15 @@ jobs:
       - name: Clean up temporary Windows signing cert
         if: always()
         shell: pwsh
-        run: Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:RUNNER_TEMP "autoq-win.pfx")
+        run: Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:RUNNER_TEMP "trivium-win.pfx")
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Windows-x64
+          name: Trivium-Windows-x64
           path: |
-            windows-beta/dist/AutoQ-Setup-x64.exe
-            windows-beta/dist/AutoQ-Windows-x64.zip
+            windows-beta/dist/Trivium-Setup-x64.exe
+            windows-beta/dist/Trivium-Windows-x64.zip
 
   build-android-apk:
     name: Android APK (Kotlin + Jetpack Compose)
@@ -198,26 +239,26 @@ jobs:
             echo "Missing ANDROID_KEYSTORE_BASE64 secret" >&2
             exit 1
           fi
-          export ANDROID_KEYSTORE_PATH="${RUNNER_TEMP}/autoq-release.jks"
+          export ANDROID_KEYSTORE_PATH="${RUNNER_TEMP}/trivium-release.jks"
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "${ANDROID_KEYSTORE_PATH}"
           chmod +x gradlew
           ./gradlew assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk AutoQ-Android.apk
+          cp app/build/outputs/apk/release/app-release.apk Trivium-Android.apk
 
       - name: Clean up temporary keystore
         if: always()
-        run: rm -f "${RUNNER_TEMP}/autoq-release.jks"
+        run: rm -f "${RUNNER_TEMP}/trivium-release.jks"
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoQ-Android-APK
-          path: android/AutoQ-Android.apk
+          name: Trivium-Android-APK
+          path: android/Trivium-Android.apk
 
   publish-release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux-packages, build-linux-arm64, build-windows-native, build-android-apk]
+    needs: [build-linux-packages, build-linux-arm64, build-macos-arm64, build-windows-native, build-android-apk]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -230,10 +271,11 @@ jobs:
       - name: Prepare release assets & SHA256SUMS.txt
         run: |
           mkdir -p dist-release
-          cp release-assets/AutoQ-Linux-Packages/* dist-release/
-          cp release-assets/AutoQ-Linux-ARM64/* dist-release/
-          cp release-assets/AutoQ-Windows-x64/* dist-release/
-          cp release-assets/AutoQ-Android-APK/AutoQ-Android.apk dist-release/
+          cp release-assets/Trivium-Linux-Packages/* dist-release/
+          cp release-assets/Trivium-Linux-ARM64/* dist-release/
+          cp release-assets/Trivium-macOS-arm64/* dist-release/
+          cp release-assets/Trivium-Windows-x64/* dist-release/
+          cp release-assets/Trivium-Android-APK/Trivium-Android.apk dist-release/
           cd dist-release
           sha256sum * > SHA256SUMS.txt
 
@@ -242,11 +284,12 @@ jobs:
         with:
           generate_release_notes: true
           body: |
-            ### Descargas incluidas (100 % Rust Nativo en Escritorio)
-            - **Linux AppImage (`AutoQ-x86_64.AppImage`)**: aplicación 100 % nativa en Rust (`< 10 MB`) con instaladores 1-clic de Hyprland, KDE Plasma 6, `autoq-daemon` y reglas `udev`.
-            - **Debian / Ubuntu / Mint (`autoq_*_amd64.deb`)**: instalable con `sudo apt install ./autoq_*_amd64.deb` (configura reglas USB `udev` `0660 + uaccess` y unidad `autoq-daemon.service`).
-            - **Linux Binarios Independientes**: `x86_64` y `ARM64` (`aarch64`) para `autoq-gui`, `autoq-cli` y `autoq-daemon`.
-            - **Windows 10/11 (`AutoQ-Setup-x64.exe` y portable `AutoQ-Windows-x64.zip`)**: instalador único + paquete portable 100 % Rust nativo (`AutoQ.exe` sin ventanas de consola emergentes, 8 familias DSP + Equalizer APO).
-            - **Android (`AutoQ-Android.apk`)**: APK release firmado (actualizable encima en futuras versiones), Kotlin + Jetpack Compose con temas modulares (`Default`, `Default claro`, `NothingOS`), widget sincronizado y exportadores multi-formato.
+            ### Descargas incluidas (**Trivium** — Hardware DSP · EQ Global · AutoEQ)
+            - **Linux AppImage (`Trivium-x86_64.AppImage`)**: aplicación nativa en Rust con instaladores 1-clic de Hyprland, KDE Plasma 6 (`org.speed17x.trivium`), `trivium-daemon` y reglas `udev`.
+            - **Debian / Ubuntu / Mint (`trivium_*_amd64.deb`)**: instalable con `sudo apt install ./trivium_*_amd64.deb`.
+            - **Linux Binarios Independientes**: `x86_64` y `ARM64` (`aarch64`) para `trivium`, `trivium-cli` y `trivium-daemon`.
+            - **Windows 10/11 (`Trivium-Setup-x64.exe` y portable `Trivium-Windows-x64.zip`)**: instalador único + paquete portable (`Trivium.exe` con 9 familias USB DSP y Equalizer APO).
+            - **macOS Apple Silicon Experimental (`Trivium-macOS-arm64.zip`)**: binarios `aarch64-apple-darwin` para hardware USB DSP y exportación.
+            - **Android (`Trivium-Android.apk`)**: app independiente `com.speed17x.trivium` con 9 familias USB DSP, transporte inalámbrico BLE GATT (FiiO EH11/EH13 y Airoha/Maxwell), ganancia/atenuación de salida `-30..+12 dB`, temas modulares y widget sincronizado.
             - **Sumas de verificación (`SHA256SUMS.txt`)**.
           files: dist-release/*

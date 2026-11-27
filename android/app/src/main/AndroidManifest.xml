@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -9,7 +10,14 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
 
     <uses-feature
         android:name="android.hardware.usb.host"
@@ -55,10 +63,10 @@
             android:label="@string/widget_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.hector.moondropdsp.widget.ACTION_TOGGLE_EQ" />
-                <action android:name="com.hector.moondropdsp.widget.ACTION_PREV_PRESET" />
-                <action android:name="com.hector.moondropdsp.widget.ACTION_NEXT_PRESET" />
-                <action android:name="com.hector.moondropdsp.widget.ACTION_REFRESH" />
+                <action android:name="com.speed17x.trivium.widget.ACTION_TOGGLE_EQ" />
+                <action android:name="com.speed17x.trivium.widget.ACTION_PREV_PRESET" />
+                <action android:name="com.speed17x.trivium.widget.ACTION_NEXT_PRESET" />
+                <action android:name="com.speed17x.trivium.widget.ACTION_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

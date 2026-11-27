@@ -1,0 +1,59 @@
+package com.speed17x.trivium.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.speed17x.trivium.R
+
+val ConsolasFontFamily = FontFamily(
+    Font(R.font.consolas_regular, FontWeight.Normal),
+    Font(R.font.consolas_bold, FontWeight.Bold),
+)
+
+val Typography = Typography(
+    titleLarge = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        letterSpacing = 0.8.sp,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        letterSpacing = 0.6.sp,
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp,
+        letterSpacing = 0.6.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 11.sp,
+        letterSpacing = 0.4.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = ConsolasFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 10.sp,
+        letterSpacing = 0.3.sp,
+    ),
+)

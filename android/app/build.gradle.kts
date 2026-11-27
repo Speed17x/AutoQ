@@ -5,14 +5,14 @@ plugins {
 }
 
 android {
-  namespace = "com.hector.moondropdsp"
+  namespace = "com.speed17x.trivium"
   compileSdk = 36
   defaultConfig {
-    applicationId = "com.hector.moondropdsp"
+    applicationId = "com.speed17x.trivium"
     minSdk = 28
     targetSdk = 36
-    versionCode = 6
-    versionName = "2.2.0"
+    versionCode = 7
+    versionName = "3.0.0"
   }
 
   signingConfigs {

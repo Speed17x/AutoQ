@@ -1,0 +1,8 @@
+{
+  "id": "com.speed17x.trivium",
+  "url": "https://github.com/Speed17x/Trivium",
+  "author": "Speed17x",
+  "name": "Trivium",
+  "preferredApkIndex": 0,
+  "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"filterReleaseNotesByRegEx\":\"\",\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"useLatestAssetDateAsReleaseDate\":false,\"releaseTitleAsVersion\":false,\"trackOnly\":false,\"versionExtractionRegExMatch\":\"\",\"versionExtractionRegExReplace\":\"\",\"matchGroupToUse\":\"\",\"versionDetection\":false,\"releaseDateAsVersion\":false,\"useVersionCodeAsOSVersion\":false,\"apkFilterRegEx\":\"Trivium-Android\\\\.apk\",\"invertAPKFilter\":false,\"autoApkFilterByArch\":false,\"appName\":\"Trivium\",\"shizukuPretendToBeGooglePlay\":false,\"allowInsecure\":false,\"exemptFromBackgroundUpdates\":false,\"skipUpdateNotifications\":false,\"about\":\"Ecualizador paramétrico universal y AutoEQ (+14,500 curvas) con soporte USB-C DSP, BLE GATT y EQ global DynamicsProcessing.\"}"
+}

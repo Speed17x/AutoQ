@@ -1,6 +1,6 @@
-# Protocolo USB-C HID (KTMicro 5-band y Moondrop 8-band)
+# Protocolo USB-C HID (KTMicro 5-band, Moondrop 8-band y Conexant 9-band)
 
-AutoQ implementa el protocolo binario USB HID directamente en Linux (`/dev/hidrawX` en `chu2_hid.py`) y Android (`UsbManager` en `MoondropProtocolCodec.kt` + `UsbMoondropTransport.kt`).
+Trivium implementa los protocolos binarios USB HID directamente en Rust (`crates/trivium-core/src/hid.rs`, `/dev/hidrawX` en Linux y `hidapi` en Windows/macOS) y Kotlin en Android (`MoondropProtocolCodec.kt` + `UsbMoondropTransport.kt`).
 
 ---
 
@@ -51,12 +51,13 @@ Utilizado en **Moondrop FreeDSP Pro / Mini**, **Rays**, **AG Rays**, **Marigold*
 
 ## 3. Reglas `udev` recomendadas en Linux
 
-Para evitar ejecutar AutoQ como `root`, crea `/etc/udev/rules.d/99-autoq-usb-dsp.rules`:
+Trivium instala automáticamente [`packaging/udev/99-trivium-usb-dsp.rules`](../packaging/udev/99-trivium-usb-dsp.rules) con permisos seguros de sesión local (`MODE="0660", TAG+="uaccess"`) en `/etc/udev/rules.d/99-trivium-usb-dsp.rules` (evita `0666` abierto a cualquier usuario):
 
 ```udev
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", MODE="0666"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2fc6", MODE="0666"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2f20", MODE="0666"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2fc6", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2f20", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="35d8", MODE="0660", TAG+="uaccess"
 ```
 
 Aplica las reglas sin reiniciar:

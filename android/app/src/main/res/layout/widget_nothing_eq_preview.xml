@@ -28,7 +28,7 @@
             android:layout_weight="1"
             android:fontFamily="monospace"
             android:letterSpacing="0.14"
-            android:text="AUTOQ"
+            android:text="TRIVIUM"
             android:textColor="#F5F5F5"
             android:textSize="12sp"
             android:textStyle="bold" />

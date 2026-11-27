@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Trivium
+GenericName=Universal Parametric EQ & AutoEQ
+Comment=Ecualizador paramétrico universal USB-C DSP, BLE GATT, Bluetooth y PipeWire con +14,500 curvas AutoEq
+Exec=trivium
+Icon=trivium
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;
+StartupWMClass=trivium

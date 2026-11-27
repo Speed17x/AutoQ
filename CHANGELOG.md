@@ -1,6 +1,24 @@
-# Changelog — AutoQ
+# Changelog — Trivium (antes AutoQ)
 
-Todos los cambios relevantes de **AutoQ** (Android, Linux Hyprland, Linux KDE Plasma 6, Linux AppImage y Windows Beta) se documentan en este archivo siguiendo [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [Versionado Semántico](https://semver.org/lang/es/).
+Todos los cambios relevantes de **Trivium** (Linux, Android, Windows, macOS experimental, Hyprland, KDE Plasma 6 y AppImage) se documentan en este archivo siguiendo [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [Versionado Semántico](https://semver.org/lang/es/).
+
+---
+
+## [3.0.0] — 2026-11-26
+
+### Añadido / Cambiado
+- **Nueva identidad completa: `AutoQ` → `Trivium`**:
+  - Repositorio renombrado a `Speed17x/Trivium`, crates renombrados a `crates/trivium-{core,cli,gui,daemon}` con binario principal `trivium`, y migración automática de `~/.config/autoq` y `%LOCALAPPDATA%\AutoQ` a `trivium` / `Trivium`.
+  - Android migrado a paquete limpio independiente **`com.speed17x.trivium`** (`Trivium-Android.apk`), plasmoid KDE **`org.speed17x.trivium`**, reglas `99-trivium-usb-dsp.rules`, `trivium-daemon.service`, `Trivium-Setup-x64.exe`, `Speed17x.Trivium.yaml` y `obtainium-trivium.json`.
+- **Ganancia / Atenuación de Salida (`-30.0` a `+12.0 dB`, Android + Escritorio)**:
+  - Control separado del Preamp anti-*clipping* capaz de reducir volumen suavemente para IEMs muy sensibles o amplificar hasta `+12 dB`: aplicado en Android vía `DynamicsProcessing.Limiter.postGain`, en PipeWire vía nodo `eq_output_gain` y en Equalizer APO como etapa final de ganancia (sincronizado también en comparación A/B).
+- **9.ª familia USB-C DSP — Conexant Freeman 9B (Escritorio + Android)**:
+  - Soporte para **Moondrop FreeDSP** (`0x35D8:0x1496`) y **Moondrop ECHO-B** (`0x35D8:0x149B`) con 9 bandas y cálculo biquad cuantizado $2^{30}$ para 44.1, 48, 96 y 192 kHz.
+- **Transporte Inalámbrico BLE GATT DSP (Android + Codecs en Rust)**:
+  - Codecs verificados para **FiiO BLE GATT** (`FIIO EH11` / `EH13`, 10B ±20 dB) y **Airoha BLE GATT** (`Audeze Maxwell`, 10B 193B) en `trivium_core::ble_dsp` y transporte nativo `BleDspTransport` en Android (con permisos `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`).
+- **Diagnóstico comunitario, matriz de hardware y macOS ARM64 experimental**:
+  - Nuevo subcomando `trivium-cli hid-scan --dump-descriptors` y `trivium-cli ble-protocols`, junto con [`docs/HARDWARE_MATRIX.md`](./docs/HARDWARE_MATRIX.md).
+  - Target macOS separado para `hidapi` (`macos-shared-device`) y nuevo job `build-macos-arm64` en GitHub Actions generando `Trivium-macOS-arm64.zip`.
 
 ---
 

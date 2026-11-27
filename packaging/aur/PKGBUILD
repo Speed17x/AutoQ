@@ -1,10 +1,10 @@
-# Maintainer: Hector <https://github.com/Speed17x/AutoQ>
-pkgname=autoq
-pkgver=2.2.0
+# Maintainer: Hector <https://github.com/Speed17x/Trivium>
+pkgname=trivium
+pkgver=3.0.0
 pkgrel=1
-pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust Nothing OS GUI + multiprotocol DSP CLI & autoq-daemon)"
+pkgdesc="Universal Parametric EQ & AutoEQ suite (100% native Rust GUI + 9 USB DSP protocols, BLE GATT codecs & trivium-daemon)"
 arch=('x86_64' 'aarch64')
-url="https://github.com/Speed17x/AutoQ"
+url="https://github.com/Speed17x/Trivium"
 license=('GPL-2.0-or-later')
 depends=('glibc' 'gcc-libs' 'libglvnd' 'libxkbcommon')
 optdepends=(
@@ -13,36 +13,36 @@ optdepends=(
     'plasma-workspace: Native KDE Plasma 6 QML Plasmoid support'
 )
 makedepends=('cargo')
-provides=('autoq' 'autoq-cli')
-conflicts=('autoq-bin')
+provides=('trivium' 'trivium-cli' 'trivium-daemon')
+conflicts=('trivium-bin' 'autoq' 'autoq-bin')
 options=('!lto')
-source=("${pkgname}-${pkgver}.tar.gz::https://github.com/Speed17x/AutoQ/archive/refs/tags/v${pkgver}.tar.gz")
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/Speed17x/Trivium/archive/refs/tags/v${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-    cd "AutoQ-${pkgver}"
+    cd "Trivium-${pkgver}"
     export CARGO_TARGET_DIR=target
     cargo build --release --locked --workspace
 }
 
 check() {
-    cd "AutoQ-${pkgver}"
+    cd "Trivium-${pkgver}"
     cargo test --release --locked --workspace
 }
 
 package() {
-    cd "AutoQ-${pkgver}"
-    install -Dm755 "target/release/autoq-gui" "${pkgdir}/usr/bin/autoq"
-    install -Dm755 "target/release/autoq-cli" "${pkgdir}/usr/bin/autoq-cli"
-    install -Dm755 "target/release/autoq-daemon" "${pkgdir}/usr/bin/autoq-daemon"
-    install -Dm644 "packaging/systemd/autoq-daemon.service" "${pkgdir}/usr/lib/systemd/user/autoq-daemon.service"
+    cd "Trivium-${pkgver}"
+    install -Dm755 "target/release/trivium" "${pkgdir}/usr/bin/trivium"
+    install -Dm755 "target/release/trivium-cli" "${pkgdir}/usr/bin/trivium-cli"
+    install -Dm755 "target/release/trivium-daemon" "${pkgdir}/usr/bin/trivium-daemon"
+    install -Dm644 "packaging/systemd/trivium-daemon.service" "${pkgdir}/usr/lib/systemd/user/trivium-daemon.service"
 
-    install -Dm644 "linux-hyprland/hyprland-autoq.conf" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/hyprland-autoq.conf"
-    install -Dm644 "linux-hyprland/waybar-module.jsonc" "${pkgdir}/usr/share/autoq/widgets/linux-hyprland/waybar-module.jsonc"
-    install -dm755 "${pkgdir}/usr/share/autoq/widgets/linux-kde"
-    cp -a "linux-kde/plasmoid" "${pkgdir}/usr/share/autoq/widgets/linux-kde/"
+    install -Dm644 "linux-hyprland/hyprland-trivium.conf" "${pkgdir}/usr/share/trivium/widgets/linux-hyprland/hyprland-trivium.conf"
+    install -Dm644 "linux-hyprland/waybar-module.jsonc" "${pkgdir}/usr/share/trivium/widgets/linux-hyprland/waybar-module.jsonc"
+    install -dm755 "${pkgdir}/usr/share/trivium/widgets/linux-kde"
+    cp -a "linux-kde/plasmoid" "${pkgdir}/usr/share/trivium/widgets/linux-kde/"
 
-    install -Dm644 "linux-appimage/autoq.desktop" "${pkgdir}/usr/share/applications/autoq.desktop"
-    install -Dm644 "linux-appimage/autoq.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/autoq.svg"
-    install -Dm644 "packaging/udev/99-autoq-usb-dsp.rules" "${pkgdir}/usr/lib/udev/rules.d/99-autoq-usb-dsp.rules"
+    install -Dm644 "linux-appimage/trivium.desktop" "${pkgdir}/usr/share/applications/trivium.desktop"
+    install -Dm644 "linux-appimage/trivium.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/trivium.svg"
+    install -Dm644 "packaging/udev/99-trivium-usb-dsp.rules" "${pkgdir}/usr/lib/udev/rules.d/99-trivium-usb-dsp.rules"
 }

@@ -1,6 +1,6 @@
-# Roadmap de AutoQ
+# Roadmap de Trivium (antes AutoQ)
 
-Este documento registra los hitos completados del proyecto y la hoja de ruta técnica para **AutoQ**, elaborada a partir de la auditoría directa del código base (*Rust workspace* + *Android Kotlin/Compose*) y las recomendaciones de calidad, seguridad y madurez multiplataforma.
+Este documento registra los hitos completados del proyecto y la hoja de ruta técnica para **Trivium**, elaborada a partir de la auditoría directa del código base (*Rust workspace* + *Android Kotlin/Compose*) y las recomendaciones de calidad, seguridad y madurez multiplataforma.
 
 ---
 
@@ -70,12 +70,17 @@ Este documento registra los hitos completados del proyecto y la hoja de ruta té
 
 ---
 
-### Fase 6 — `v3.0.0`: Matriz de Hardware Verificado, BLE DSP y Nuevos Ecosistemas (Largo Plazo)
+### Fase 6 — `v3.0.0`: Rebranding a **Trivium**, Ganancia/Atenuación de Salida, Conexant 9B, BLE GATT y macOS ARM64 — ✅ Integrada
 
-- [ ] **Matriz pública de hardware verificado y pruebas completas en Windows 10/11**:
-  - Validar en equipos Windows físicos las 8 familias DSP (`hidapi`, puertos COM USB-CDC y Equalizer APO) para mantener una matriz pública de firmwares probados por modelo (`VID:PID`).
-  - Añadir comando `autoq-cli hid-scan --dump-descriptors` de solo lectura para facilitar que la comunidad reporte nuevos `VID:PID` y variaciones de *firmware*, manteniendo una tabla documentada de compatibilidad probada por modelo.
-- [ ] **Transporte inalámbrico BLE GATT DSP**:
-  - Control Bluetooth Low Energy GATT sin cable USB para dispositivos como Qudelix-5K y receptores FiiO de la serie BTR.
-- [ ] **Expansión a macOS (`aarch64-apple-darwin`) y nuevos chips DSP**:
-  - Soporte experimental para audio/HID en macOS y nuevas familias USB-C DSP (Savitech, Synaptics/Conexant u otros DACs portátiles con PEQ hardware).
+- [x] **Identidad propia (`AutoQ` → `Trivium`)**:
+  - Renombrado completo de repositorio (`Speed17x/Trivium`), crates (`trivium-core`, `trivium-cli`, `trivium-gui`, `trivium-daemon`), binarios (`trivium`), paquete Android independiente (`com.speed17x.trivium`), Plasmoid (`org.speed17x.trivium`), reglas `udev`, Hyprland, Windows, Obtainium (`obtainium-trivium.json`) y WinGet (`Speed17x.Trivium.yaml`), con migración transparente desde `~/.config/autoq`.
+- [x] **Ganancia / Atenuación de Salida (`-30.0` a `+12.0 dB`, Android + Escritorio)**:
+  - Control dedicado de salida separado del Preamp anti-*clipping*: aplicado mediante `DynamicsProcessing.Limiter.postGain` en Android `GlobalEqService` (ideal para atenuar el volumen en IEMs sensibles), nodo `eq_output_gain` en PipeWire y etapa final `Preamp:` en Equalizer APO.
+- [x] **Reporte comunitario y matriz de hardware ([`docs/HARDWARE_MATRIX.md`](./docs/HARDWARE_MATRIX.md))**:
+  - Comando `trivium-cli hid-scan --dump-descriptors` de solo lectura (con `UsagePage`, `Usage` y descriptor HID hexadecimal completo en Linux).
+- [x] **9.ª familia USB-C DSP (Conexant Freeman 9B)**:
+  - Soporte completo para **Moondrop FreeDSP** (`0x35D8:0x1496`) y **Moondrop ECHO-B** (`0x35D8:0x149B`) en Rust y Android con cálculo biquad cuantizado $2^{30}$ para 44.1 / 48 / 96 / 192 kHz.
+- [x] **Transporte inalámbrico BLE GATT DSP**:
+  - Codecs verificados para **FiiO BLE GATT** (`FIIO EH11` / `EH13`, 10B ±20 dB) y **Airoha BLE GATT** (`Audeze Maxwell`, 10B 193B) en [`crates/trivium-core/src/ble_dsp.rs`](./crates/trivium-core/src/ble_dsp.rs) y transporte nativo Android [`BleDspTransport.kt`](./android/app/src/main/kotlin/com/speed17x/trivium/hardware/BleDspTransport.kt).
+- [x] **Soporte experimental macOS (`aarch64-apple-darwin`)**:
+  - Backend `hidapi` (`macos-shared-device`) separado por target en Cargo y job `build-macos-arm64` en GitHub Actions generando `Trivium-macOS-arm64.zip`.

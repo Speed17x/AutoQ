@@ -14,7 +14,7 @@ PlasmoidItem {
     switchWidth: Kirigami.Units.gridUnit * 14
     switchHeight: Kirigami.Units.gridUnit * 14
 
-    readonly property string autoqCliCmd: "PATH=\"$HOME/.local/bin:$PATH\" autoq-cli"
+    readonly property string triviumCliCmd: "PATH=\"$HOME/.local/bin:$PATH\" trivium-cli"
     readonly property string monoFont: "Consolas, Inconsolata, monospace"
     property color cyberBg: Qt.rgba(0.055, 0.067, 0.086, 0.92)
     property color cyberPanel: Qt.rgba(0.090, 0.106, 0.133, 0.90)
@@ -79,13 +79,13 @@ PlasmoidItem {
     }
 
     function runBackend(tag, args) {
-        var cmd = autoqCliCmd + " " + args;
+        var cmd = triviumCliCmd + " " + args;
         pendingTags[cmd] = tag;
         execSource.connectSource(cmd);
     }
 
     function runFastPoll() {
-        var cmd = autoqCliCmd + " poll";
+        var cmd = triviumCliCmd + " poll";
         pendingTags[cmd] = "poll";
         execSource.connectSource(cmd);
     }
@@ -455,7 +455,7 @@ PlasmoidItem {
                     if (res.target_fr_curve) targetFrPoints = res.target_fr_curve;
                     if (res.rmse !== undefined) lastRmseText = "RMSE " + res.rmse.toFixed(2) + " dB";
                     targetLabel = res.target_label || "";
-                    statusMessage = res.warning ? (res.message + " ⚠") : (res.message || "AUTOQ COMPUTED");
+                    statusMessage = res.warning ? (res.message + " ⚠") : (res.message || "AUTOEQ COMPUTED");
                     statusError = false;
                     if (livePreview && activeDevice) {
                         applyBands(false);
@@ -566,8 +566,8 @@ PlasmoidItem {
             color: root.dspEnabled ? root.coralAccent : "#64748B"
         }
         QQC2.ToolTip.text: root.activeDevice
-            ? ("AUTOQ // " + root.activeDevice.display_name + " (" + root.activeDevice.transport_label + ")")
-            : "AUTOQ // OFFLINE"
+            ? ("TRIVIUM // " + root.activeDevice.display_name + " (" + root.activeDevice.transport_label + ")")
+            : "TRIVIUM // OFFLINE"
         QQC2.ToolTip.visible: compactMouse.containsMouse
     }
 
@@ -606,7 +606,7 @@ PlasmoidItem {
                         spacing: 0
                         Layout.fillWidth: true
                         PlasmaComponents3.Label {
-                            text: root.activeDevice ? root.activeDevice.display_name : "AutoQ"
+                            text: root.activeDevice ? root.activeDevice.display_name : "Trivium"
                             font.family: root.monoFont
                             font.bold: true
                             font.pixelSize: 12
@@ -1144,7 +1144,7 @@ PlasmoidItem {
                     }
                 }
 
-                // ── AutoQ Universal Catalog & Presets Drawer ────────────────
+                // ── Trivium Universal Catalog & Presets Drawer ────────────────
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -1331,7 +1331,7 @@ PlasmoidItem {
 
                         PlasmaComponents3.Button {
                             Layout.fillWidth: true
-                            text: "CALCULAR AUTOQ // IMITAR (" + (root.activeDevice ? root.activeDevice.max_bands : 10) + "B)"
+                            text: "CALCULAR AUTOEQ // IMITAR (" + (root.activeDevice ? root.activeDevice.max_bands : 10) + "B)"
                             font.family: root.monoFont
                             font.bold: true
                             highlighted: true
