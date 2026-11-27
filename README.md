@@ -64,6 +64,7 @@ Download prebuilt binaries from [GitHub Releases](https://github.com/Speed17x/Tr
 - [Architecture & Workspace Crates (`crates/*`, exporters, flows)](./docs/ARCHITECTURE.md)
 - [Packaging & Distribution (`deb`, `install-linux.sh`, WinGet, Obtainium)](./packaging/README.md)
 - [USB HID Protocol](./docs/USB_HID_PROTOCOL.md) · [Android Shared Rust Core Evaluation](./docs/ANDROID_RUST_CORE_EVAL.md)
+- [Security & Code Signing Policy](./SECURITY.md)
 - [Roadmap](./ROADMAP.md) · [Changelog (`CHANGELOG.md`)](./CHANGELOG.md)
 
 ---
