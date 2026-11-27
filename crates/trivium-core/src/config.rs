@@ -237,12 +237,37 @@ impl UiAccentId {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiLanguage {
+    #[default]
+    Auto,
+    En,
+    Es,
+}
+
+impl UiLanguage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "AUTO",
+            Self::En => "ENGLISH",
+            Self::Es => "ESPAÑOL",
+        }
+    }
+
+    pub fn all() -> &'static [UiLanguage] {
+        &[Self::Auto, Self::En, Self::Es]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UiSettings {
     #[serde(default)]
     pub theme: UiThemeId,
     #[serde(default)]
     pub accent: UiAccentId,
+    #[serde(default)]
+    pub language: UiLanguage,
 }
 
 impl UiSettings {
@@ -635,6 +660,7 @@ mod tests {
         let def = UiSettings::default();
         assert_eq!(def.theme, UiThemeId::PureHyper);
         assert_eq!(def.accent, UiAccentId::Auto);
+        assert_eq!(def.language, UiLanguage::Auto);
         assert_eq!(UiThemeId::PureHyper.label(), "Default");
         assert_eq!(UiThemeId::PureLight.label(), "Default claro");
         assert_eq!(UiThemeId::NothingOs.label(), "NothingOS");
@@ -642,17 +668,21 @@ mod tests {
         let raw = serde_json::to_string(&UiSettings {
             theme: UiThemeId::NothingOs,
             accent: UiAccentId::Emerald,
+            language: UiLanguage::Es,
         })
         .unwrap();
         assert!(raw.contains("nothing_os"));
         assert!(raw.contains("emerald"));
+        assert!(raw.contains("\"language\":\"es\""));
         let decoded: UiSettings = serde_json::from_str(&raw).unwrap();
         assert_eq!(decoded.theme, UiThemeId::NothingOs);
         assert_eq!(decoded.accent, UiAccentId::Emerald);
+        assert_eq!(decoded.language, UiLanguage::Es);
 
         let legacy: UiSettings = serde_json::from_str(r#"{"theme":"nothing_os"}"#).unwrap();
         assert_eq!(legacy.theme, UiThemeId::NothingOs);
         assert_eq!(legacy.accent, UiAccentId::Auto);
+        assert_eq!(legacy.language, UiLanguage::Auto);
     }
 
     #[test]

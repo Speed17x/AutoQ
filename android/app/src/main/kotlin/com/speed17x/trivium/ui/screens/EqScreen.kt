@@ -39,6 +39,7 @@ import com.speed17x.trivium.hardware.DeviceKind
 import com.speed17x.trivium.hardware.MoondropDevice
 import com.speed17x.trivium.ui.MoondropUiState
 import com.speed17x.trivium.ui.components.DotMatrixText
+import com.speed17x.trivium.ui.UiLang
 import com.speed17x.trivium.ui.components.InteractiveEqCurveCanvas
 import com.speed17x.trivium.ui.components.NothingCard
 import com.speed17x.trivium.ui.components.NothingOutlineButton
@@ -153,7 +154,7 @@ fun EqScreen(
             if (dev != null && dev.kind == DeviceKind.USB_HID && !dev.hasUsbPermission) {
                 Spacer(Modifier.height(10.dp))
                 NothingPrimaryButton(
-                    text = "Autorizar permiso USB (${dev.vidPid})",
+                    text = UiLang.tr("Autorizar permiso USB (${dev.vidPid})", "Grant USB permission (${dev.vidPid})"),
                     onClick = onRequestUsbPermission,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -165,20 +166,20 @@ fun EqScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 NothingPillChip(
-                    label = if (state.overlayFrMode) "CURVA: FR" else "CURVA: ΔEQ",
+                    label = if (state.overlayFrMode) UiLang.tr("CURVA: FR", "CURVE: FR") else UiLang.tr("CURVA: ΔEQ", "CURVE: ΔEQ"),
                     selected = state.overlayFrMode,
                     onClick = onToggleOverlayFr,
                     accentRed = false,
                     modifier = Modifier.weight(1f),
                 )
                 NothingPillChip(
-                    label = "PLANO 0dB",
+                    label = UiLang.tr("PLANO 0dB", "FLAT 0dB"),
                     selected = false,
                     onClick = onResetFlat,
                     modifier = Modifier.weight(1f),
                 )
                 NothingPillChip(
-                    label = "↻ LEER",
+                    label = UiLang.tr("↻ LEER", "↻ READ"),
                     selected = false,
                     onClick = onRefresh,
                     modifier = Modifier.weight(0.85f),

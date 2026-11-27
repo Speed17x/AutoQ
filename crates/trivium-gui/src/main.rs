@@ -12,6 +12,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod graph;
+mod i18n;
 mod ipc;
 mod theme;
 
@@ -27,8 +28,8 @@ use trivium_core::biquad::{
 };
 use trivium_core::config::{
     load_daemon_config, load_presets, load_ui_settings, remove_device_rule, save_daemon_config,
-    save_presets, save_ui_settings, upsert_device_rule, DaemonConfig, UiAccentId, UiSettings,
-    UiThemeId, DEFAULT_VIRTUAL_BANDS,
+    save_presets, save_ui_settings, upsert_device_rule, DaemonConfig, UiAccentId, UiLanguage,
+    UiSettings, UiThemeId, DEFAULT_VIRTUAL_BANDS,
 };
 use trivium_core::hid::{self, MoondropDeviceInfo};
 use trivium_core::platform_linux::{self, PipeWireAudioDevice, PW_SINK_NAME};
@@ -328,6 +329,7 @@ struct TriviumApp {
     daemon_active: bool,
     active_theme: UiThemeId,
     active_accent: UiAccentId,
+    active_language: UiLanguage,
 
     status_text: String,
     status_error: bool,
@@ -338,6 +340,7 @@ impl TriviumApp {
         let ui_cfg = load_ui_settings();
         let active_theme = ui_cfg.theme;
         let active_accent = ui_cfg.accent;
+        let active_language = ui_cfg.language;
         apply_theme(&cc.egui_ctx, active_theme, active_accent);
         let (bg_tx, bg_rx) = mpsc::channel();
         let presets = load_presets();
@@ -398,11 +401,22 @@ impl TriviumApp {
             daemon_active: ipc::is_daemon_service_active(),
             active_theme,
             active_accent,
-            status_text: "INICIANDO TRIVIUM...".to_string(),
+            active_language,
+            status_text: i18n::t(
+                i18n::resolve_lang(active_language),
+                "INICIANDO TRIVIUM...",
+                "STARTING TRIVIUM...",
+            )
+            .to_string(),
             status_error: false,
         };
         app.spawn_refresh(cc.egui_ctx.clone(), String::new(), false);
         app
+    }
+
+    #[inline]
+    fn tr<'a>(&self, es: &'a str, en: &'a str) -> &'a str {
+        i18n::t(i18n::resolve_lang(self.active_language), es, en)
     }
 
     fn effective_preamp_db(&self) -> f64 {
@@ -1282,7 +1296,7 @@ impl TriviumApp {
                     if segment_tab(ui, "AUTOEQ", self.active_tab == ActiveTab::AutoEq, seg_w).clicked() {
                         self.active_tab = ActiveTab::AutoEq;
                     }
-                    if segment_tab(ui, "AVANZADO", self.active_tab == ActiveTab::Advanced, seg_w).clicked() {
+                    if segment_tab(ui, self.tr("AVANZADO", "ADVANCED"), self.active_tab == ActiveTab::Advanced, seg_w).clicked() {
                         self.active_tab = ActiveTab::Advanced;
                     }
                 });
@@ -1481,21 +1495,24 @@ impl TriviumApp {
 
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                section_label(ui, "SALIDA · ATENUACIÓN / AMPLIFICACIÓN");
+                section_label(
+                    ui,
+                    self.tr("SALIDA · ATENUACIÓN / AMPLIFICACIÓN", "OUTPUT · ATTENUATION / BOOST"),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if outline_pill(ui, "0 dB", self.output_gain_db.abs() < 0.05, Vec2::new(44.0, 20.0))
-                        .on_hover_text("Restablecer ganancia de salida a 0.0 dB")
+                        .on_hover_text(self.tr("Restablecer ganancia de salida a 0.0 dB", "Reset output gain to 0.0 dB"))
                         .clicked()
                     {
                         self.output_gain_db = 0.0;
                         self.schedule_live_apply();
                     }
                     let (out_tag, out_col) = if self.output_gain_db < -0.05 {
-                        ("ATENUADO", safe_col)
+                        (self.tr("ATENUADO", "ATTENUATED"), safe_col)
                     } else if self.output_gain_db > 0.05 {
                         ("BOOST", warn_col)
                     } else {
-                        ("NEUTRO", pal.text_muted)
+                        (self.tr("NEUTRO", "NEUTRAL"), pal.text_muted)
                     };
                     ui.label(
                         egui::RichText::new(out_tag)
@@ -1508,9 +1525,10 @@ impl TriviumApp {
             });
             ui.add_space(2.0);
             let out_lbl = format!("{:+.1} dB", self.output_gain_db);
+            let out_title = self.tr("SALIDA", "OUTPUT");
             if nothing_slider(
                 ui,
-                "SALIDA",
+                out_title,
                 &mut self.output_gain_db,
                 -30.0,
                 12.0,
@@ -1720,7 +1738,7 @@ impl TriviumApp {
         ui.horizontal(|ui| {
             if outline_pill(
                 ui,
-                "CURVA TARGET",
+                self.tr("CURVA TARGET", "TARGET CURVE"),
                 self.autoeq_mode == AutoEqMode::TargetCurve,
                 Vec2::new(col_w, 30.0),
             )
@@ -1730,7 +1748,7 @@ impl TriviumApp {
             }
             if outline_pill(
                 ui,
-                "IMITAR AUDÍFONO",
+                self.tr("IMITAR AUDÍFONO", "MATCH HEADPHONE"),
                 self.autoeq_mode == AutoEqMode::MatchHeadphone,
                 Vec2::new(col_w, 30.0),
             )
@@ -1848,7 +1866,7 @@ impl TriviumApp {
         let pal = palette();
         // ── Modular Theme Selector Card ──
         sub_card_frame().show(ui, |ui| {
-            section_label(ui, "APARIENCIA Y TEMAS (MODULAR)");
+            section_label(ui, self.tr("APARIENCIA Y TEMAS (MODULAR)", "APPEARANCE & THEMES (MODULAR)"));
             let third_w = ((ui.available_width() - 14.0) / 3.0).max(85.0);
             ui.horizontal(|ui| {
                 for &tid in UiThemeId::all() {
@@ -1861,8 +1879,14 @@ impl TriviumApp {
                         let _ = save_ui_settings(&UiSettings {
                             theme: tid,
                             accent: self.active_accent,
+                            language: self.active_language,
                         });
-                        self.set_status(format!("TEMA CAMBIADO A: {}", tid.label().to_uppercase()), false);
+                        let msg = format!(
+                            "{}: {}",
+                            self.tr("TEMA CAMBIADO A", "THEME SET TO"),
+                            tid.label().to_uppercase()
+                        );
+                        self.set_status(msg, false);
                     }
                 }
             });
@@ -1870,7 +1894,39 @@ impl TriviumApp {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("COLOR DE RESALTADO:")
+                    egui::RichText::new(self.tr("IDIOMA / LANGUAGE:", "LANGUAGE / IDIOMA:"))
+                        .size(10.0)
+                        .strong()
+                        .color(pal.text_muted),
+                );
+            });
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                for &lid in UiLanguage::all() {
+                    let active = self.active_language == lid;
+                    if outline_pill(ui, lid.label(), active, Vec2::new(third_w, 24.0)).clicked()
+                        && !active
+                    {
+                        self.active_language = lid;
+                        let _ = save_ui_settings(&UiSettings {
+                            theme: self.active_theme,
+                            accent: self.active_accent,
+                            language: lid,
+                        });
+                        let msg = format!(
+                            "{}: {}",
+                            self.tr("IDIOMA", "LANGUAGE"),
+                            lid.label()
+                        );
+                        self.set_status(msg, false);
+                    }
+                }
+            });
+
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(self.tr("COLOR DE RESALTADO:", "ACCENT COLOR:"))
                         .size(10.0)
                         .strong()
                         .color(pal.text_muted),
@@ -1915,11 +1971,14 @@ impl TriviumApp {
                         let _ = save_ui_settings(&UiSettings {
                             theme: self.active_theme,
                             accent: acc,
+                            language: self.active_language,
                         });
-                        self.set_status(
-                            format!("COLOR DE RESALTADO: {}", acc.label().to_uppercase()),
-                            false,
+                        let msg = format!(
+                            "{}: {}",
+                            self.tr("COLOR DE RESALTADO", "ACCENT COLOR"),
+                            acc.label().to_uppercase()
                         );
+                        self.set_status(msg, false);
                     }
                 }
             });
@@ -1948,31 +2007,32 @@ impl TriviumApp {
             ui.horizontal(|ui| {
                 let sel = self.selected_preset.clone();
                 let apply_w = (ui.available_width() - 94.0).max(120.0);
-                if red_pill(ui, "APLICAR", Vec2::new(apply_w, 28.0)).clicked() {
+                if red_pill(ui, self.tr("APLICAR", "APPLY"), Vec2::new(apply_w, 28.0)).clicked() {
                     self.apply_preset_by_name(ctx, &sel);
                 }
-                if outline_pill(ui, "ELIMINAR", false, Vec2::new(86.0, 28.0)).clicked() {
+                if outline_pill(ui, self.tr("ELIMINAR", "DELETE"), false, Vec2::new(86.0, 28.0)).clicked() {
                     if self.presets.remove(&sel).is_some() {
                         let _ = save_presets(&self.presets);
-                        self.set_status(format!("PRESET '{sel}' ELIMINADO"), false);
+                        self.set_status(format!("PRESET '{sel}' {}", self.tr("ELIMINADO", "DELETED")), false);
                     }
                 }
             });
 
             ui.horizontal(|ui| {
+                let hint_preset = self.tr("Nombre del nuevo preset...", "New preset name...");
                 ui.add(
                     egui::TextEdit::singleline(&mut self.new_preset_name)
-                        .hint_text("Nombre del nuevo preset...")
+                        .hint_text(hint_preset)
                         .desired_width(ui.available_width() - 94.0),
                 );
-                if outline_pill(ui, "GUARDAR", false, Vec2::new(86.0, 26.0)).clicked() {
+                if outline_pill(ui, self.tr("GUARDAR", "SAVE"), false, Vec2::new(86.0, 26.0)).clicked() {
                     let nm = self.new_preset_name.trim().to_string();
                     if !nm.is_empty() {
                         self.presets.insert(nm.clone(), self.bands.clone());
                         let _ = save_presets(&self.presets);
                         self.selected_preset = nm.clone();
                         self.new_preset_name.clear();
-                        self.set_status(format!("PRESET '{nm}' GUARDADO"), false);
+                        self.set_status(format!("PRESET '{nm}' {}", self.tr("GUARDADO", "SAVED")), false);
                     }
                 }
             });

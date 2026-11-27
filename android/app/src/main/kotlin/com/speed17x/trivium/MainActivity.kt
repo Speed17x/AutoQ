@@ -52,14 +52,17 @@ import com.speed17x.trivium.ui.screens.AutoEqScreen
 import com.speed17x.trivium.ui.screens.EqScreen
 import com.speed17x.trivium.ui.theme.AppThemeId
 import com.speed17x.trivium.ui.theme.ConsolasFontFamily
+import com.speed17x.trivium.ui.UiLang
 import com.speed17x.trivium.ui.theme.LocalTriviumTheme
 import com.speed17x.trivium.ui.theme.MoondropDSPTheme
 import com.speed17x.trivium.ui.theme.tokensFor
 
-private enum class AppTab(val label: String) {
-    EQ("EQ"),
-    AUTOEQ("AUTOEQ"),
-    ADVANCED("AVANZADO"),
+private enum class AppTab(val es: String, val en: String) {
+    EQ("EQ", "EQ"),
+    AUTOEQ("AUTOEQ", "AUTOEQ"),
+    ADVANCED("AVANZADO", "ADVANCED");
+
+    val label: String get() = UiLang.tr(es, en)
 }
 
 class MainActivity : ComponentActivity() {

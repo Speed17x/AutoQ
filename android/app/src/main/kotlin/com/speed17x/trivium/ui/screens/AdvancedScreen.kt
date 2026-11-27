@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.speed17x.trivium.data.EqPreset
 import com.speed17x.trivium.hardware.DeviceKind
 import com.speed17x.trivium.ui.MoondropUiState
+import com.speed17x.trivium.ui.UiLang
 import com.speed17x.trivium.ui.components.DotMatrixText
 import com.speed17x.trivium.ui.components.NothingCard
 import com.speed17x.trivium.ui.components.NothingOutlineButton
@@ -99,10 +100,13 @@ fun AdvancedScreen(
     ) {
         // Header
         NothingCard {
-            DotMatrixText(text = "AVANZADO", dotSize = 2.4.dp, dotGap = 1.0.dp)
+            DotMatrixText(text = UiLang.tr("AVANZADO", "ADVANCED"), dotSize = 2.4.dp, dotGap = 1.0.dp)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "TEMAS · PRESETS · WIDGET · BLUETOOTH DSP · DIAGNÓSTICO",
+                text = UiLang.tr(
+                    "TEMAS · PRESETS · WIDGET · BLUETOOTH DSP · DIAGNÓSTICO",
+                    "THEMES · PRESETS · WIDGET · BLUETOOTH DSP · DIAGNOSTICS",
+                ),
                 color = t.textMuted,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -111,7 +115,7 @@ fun AdvancedScreen(
         // 0. Modular Theme Picker
         NothingCard {
             NothingSectionLabel(
-                text = "Apariencia y Temas",
+                text = UiLang.tr("Apariencia y Temas", "Appearance & Themes"),
                 trailing = state.themeId.label,
             )
             Spacer(Modifier.height(8.dp))
@@ -153,7 +157,7 @@ fun AdvancedScreen(
             }
             Spacer(Modifier.height(10.dp))
             NothingSectionLabel(
-                text = "Color de resaltado",
+                text = UiLang.tr("Color de resaltado", "Accent Color"),
                 trailing = state.accentId.label,
             )
             Spacer(Modifier.height(8.dp))

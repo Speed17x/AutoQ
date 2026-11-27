@@ -126,7 +126,8 @@ jobs:
     name: macOS ARM64 Experimental (Binaries)
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs: [rust-tests]
-    runs-on: macos-14
+    runs-on: macos-15
+    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -273,7 +274,7 @@ jobs:
           mkdir -p dist-release
           cp release-assets/Trivium-Linux-Packages/* dist-release/
           cp release-assets/Trivium-Linux-ARM64/* dist-release/
-          cp release-assets/Trivium-macOS-arm64/* dist-release/
+          cp release-assets/Trivium-macOS-arm64/* dist-release/ 2>/dev/null || true
           cp release-assets/Trivium-Windows-x64/* dist-release/
           cp release-assets/Trivium-Android-APK/Trivium-Android.apk dist-release/
           cd dist-release

@@ -36,6 +36,7 @@ import com.speed17x.trivium.data.AutoEqEntry
 import com.speed17x.trivium.data.AutoEqParser
 import com.speed17x.trivium.ui.AutoEqMode
 import com.speed17x.trivium.ui.MoondropUiState
+import com.speed17x.trivium.ui.UiLang
 import com.speed17x.trivium.ui.components.DotMatrixText
 import com.speed17x.trivium.ui.components.NothingCard
 import com.speed17x.trivium.ui.components.NothingOutlineButton
@@ -219,7 +220,7 @@ fun AutoEqScreen(
 
         // Mode Switch: Curva Target vs Imitar Audífono
         NothingCard {
-            NothingSectionLabel(text = "Objetivo de ecualización")
+            NothingSectionLabel(text = UiLang.tr("Objetivo de ecualización", "EQ Target"))
             Spacer(Modifier.height(10.dp))
 
             Row(
@@ -227,14 +228,14 @@ fun AutoEqScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 NothingPillChip(
-                    label = "CURVA TARGET",
+                    label = UiLang.tr("CURVA TARGET", "TARGET CURVE"),
                     selected = state.autoEqMode == AutoEqMode.TARGET_CURVE,
                     onClick = { onSetMode(AutoEqMode.TARGET_CURVE) },
                     accentRed = true,
                     modifier = Modifier.weight(1f),
                 )
                 NothingPillChip(
-                    label = "IMITAR AUDÍFONO",
+                    label = UiLang.tr("IMITAR AUDÍFONO", "MATCH HEADPHONE"),
                     selected = state.autoEqMode == AutoEqMode.MATCH_HEADPHONE,
                     onClick = { onSetMode(AutoEqMode.MATCH_HEADPHONE) },
                     accentRed = true,
