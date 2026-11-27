@@ -2566,7 +2566,7 @@ checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 
 [[package]]
 name = "trivium-cli"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "base64",
  "serde",
@@ -2576,7 +2576,7 @@ dependencies = [
 
 [[package]]
 name = "trivium-core"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "csv",
  "hidapi",
@@ -2590,7 +2590,7 @@ dependencies = [
 
 [[package]]
 name = "trivium-daemon"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "serde_json",
  "trivium-core",
@@ -2598,7 +2598,7 @@ dependencies = [
 
 [[package]]
 name = "trivium-gui"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "eframe",
  "serde_json",

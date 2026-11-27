@@ -1,6 +1,6 @@
 [package]
 name = "trivium-daemon"
-version = "3.0.1"
+version = "3.0.2"
 edition.workspace = true
 license.workspace = true
 description = "Optional background auto-profile daemon for Trivium (watches USB udev/serial & PipeWire sinks)"

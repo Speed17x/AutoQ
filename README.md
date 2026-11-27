@@ -25,6 +25,10 @@
 
 ## Screenshots (`Default` Emerald · also includes `Default Light` & `NothingOS`)
 
+<p align="center">
+  <img src="./docs/screenshots/trivium_demo.gif" alt="Trivium Demo" width="320" />
+</p>
+
 | Compact Widget (`Trivium`) | Parametric EQ (`EQ` + Output Gain) | AutoEQ (+14,500 curves) | Advanced & 1-Click |
 | :---: | :---: | :---: | :---: |
 | ![Compact Widget](./docs/screenshots/trivium_widget.png) | ![EQ Tab](./docs/screenshots/trivium_full_eq.png) | ![AutoEQ Tab](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Advanced Tab](./docs/screenshots/autoq_nothing_full_adv.png) |

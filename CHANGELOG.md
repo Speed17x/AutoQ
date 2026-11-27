@@ -4,6 +4,15 @@ Todos los cambios relevantes de **Trivium** (Linux, Android, Windows, macOS expe
 
 ---
 
+## [3.0.2] — 2026-11-26
+
+### Añadido / Cambiado
+- **Pulido de i18n EN/ES en escritorio (`trivium-gui`)**: completada la traducción dinámica de controles secundarios (`Guardar Flash / Save Flash`, `Banda / Band`, daemon, reglas udev y diagnóstico).
+- **Documentación y seguridad Windows**: añadido aviso explícito de **Windows SmartScreen** (mientras se tramita la firma Authenticode en SignPath Foundation) en [`README.md`](./README.md), [`README.es.md`](./README.es.md) y [`windows-beta/README.md`](./windows-beta/README.md).
+- **Capturas y demo animada**: nuevas capturas reales de `Trivium` (`trivium_widget.png`, `trivium_full_eq.png`) y vista animada `trivium_demo.gif`.
+
+---
+
 ## [3.0.1] — 2026-11-26
 
 ### Añadido / Cambiado

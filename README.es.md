@@ -25,6 +25,10 @@
 
 ## Capturas (`Default` Esmeralda · también incluye `Default claro` y `NothingOS`)
 
+<p align="center">
+  <img src="./docs/screenshots/trivium_demo.gif" alt="Trivium Demo" width="320" />
+</p>
+
 | Widget Compacto (`Trivium`) | Ecualizador (`EQ` + Salida) | AutoEQ (+14,500 curvas) | Avanzado & 1-Clic |
 | :---: | :---: | :---: | :---: |
 | ![Widget Compacto](./docs/screenshots/trivium_widget.png) | ![Pestaña EQ](./docs/screenshots/trivium_full_eq.png) | ![Pestaña AutoEQ](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Pestaña Avanzado](./docs/screenshots/autoq_nothing_full_adv.png) |
