@@ -3,7 +3,8 @@
 > [!NOTE]
 > **Probado funcionalmente en Windows 10/11.** `Trivium.exe` es una aplicación GUI pura (`windows_subsystem = "windows"`) que lee USB-C HID vía `hidapi` y puertos COM USB-CDC directamente desde el Registro de Windows (`HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`), **sin abrir ventanas emergentes de PowerShell ni CMD**.
 >
-> Mientras se completa el alta de firma **Authenticode** gratuita para código abierto (SignPath Foundation), Windows Defender SmartScreen mostrará la advertencia habitual de editor desconocido en binarios nuevos: pulsa **Más información → Ejecutar de todas formas** (y verifica su huella en `SHA256SUMS.txt`).
+> [!WARNING]
+> **Advertencia de Windows SmartScreen:** Mientras se completa el alta de firma **Authenticode** gratuita para código abierto (**SignPath Foundation**), `Trivium-Setup-x64.exe` y `Trivium.exe` aún no están firmados por una autoridad pública. Windows Defender SmartScreen mostrará *"Windows protegió su PC / Editor desconocido"*: verifica la integridad con `SHA256SUMS.txt` y pulsa **Más información → Ejecutar de todas formas** (o compílalo tú mismo desde código fuente).
 
 ---
 

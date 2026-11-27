@@ -1374,11 +1374,15 @@ impl TriviumApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let is_usb = self.active_device().map(RuntimeDevice::is_usb_hid).unwrap_or(false);
                 let cta = if is_usb {
-                    if self.dirty_bands { "GUARDAR FLASH ●" } else { "GUARDAR FLASH" }
+                    if self.dirty_bands {
+                        self.tr("GUARDAR FLASH ●", "SAVE FLASH ●")
+                    } else {
+                        self.tr("GUARDAR FLASH", "SAVE FLASH")
+                    }
                 } else if self.dirty_bands {
-                    "APLICAR PW *"
+                    self.tr("APLICAR EQ ●", "APPLY EQ ●")
                 } else {
-                    "APLICAR EQ"
+                    self.tr("APLICAR EQ", "APPLY EQ")
                 };
                 if red_pill(ui, cta, Vec2::new(114.0, 30.0)).clicked() {
                     self.spawn_apply(ctx.clone(), is_usb);
@@ -1571,12 +1575,13 @@ impl TriviumApp {
             .unwrap_or(true);
         let mut changed = false;
 
+        let band_lbl = self.tr("BANDA", "BAND").to_string();
         sub_card_frame().show(ui, |ui| {
             let idx = self.selected_band.min(self.bands.len().saturating_sub(1));
             let total = self.bands.len();
             if let Some(b) = self.bands.get_mut(idx) {
                 ui.horizontal(|ui| {
-                    section_label(ui, &format!("BANDA  {} / {}", idx + 1, total));
+                    section_label(ui, &format!("{band_lbl}  {} / {}", idx + 1, total));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if outline_pill(ui, "0.0", false, Vec2::new(40.0, 24.0)).clicked() {
                             b.gain = 0.0;
@@ -1760,10 +1765,15 @@ impl TriviumApp {
 
         ui.add_space(4.0);
 
+        let target_sec_lbl = self.tr(
+            "CURVA OBJETIVO (8 TARGETS VERIFICADOS)",
+            "TARGET CURVE (8 VERIFIED TARGETS)",
+        );
+        let match_sec_lbl = self.tr("AUDÍFONO DESTINO A IMITAR", "TARGET HEADPHONE TO MATCH");
         // Target / Match card
         sub_card_frame().show(ui, |ui| match self.autoeq_mode {
             AutoEqMode::TargetCurve => {
-                section_label(ui, "CURVA OBJETIVO (8 TARGETS VERIFICADOS)");
+                section_label(ui, target_sec_lbl);
                 ui.add_space(4.0);
                 let cur_t = CURATED_TARGETS
                     .get(self.target_curve_idx)
@@ -1781,7 +1791,7 @@ impl TriviumApp {
                     });
             }
             AutoEqMode::MatchHeadphone => {
-                section_label(ui, "AUDÍFONO DESTINO A IMITAR");
+                section_label(ui, match_sec_lbl);
                 let cur_tgt_lbl = self
                     .selected_match_idx
                     .and_then(|i| self.catalog.get(i))
@@ -2201,7 +2211,10 @@ impl TriviumApp {
                 });
                 if outline_pill(
                     ui,
-                    "ACTIVAR ACCESO USB DSP SIN SUDO (REGLAS UDEV)",
+                    self.tr(
+                        "ACTIVAR ACCESO USB DSP SIN SUDO (REGLAS UDEV)",
+                        "ENABLE ROOTLESS USB DSP (UDEV RULES)",
+                    ),
                     false,
                     Vec2::new(ui.available_width(), 28.0),
                 )
@@ -2222,23 +2235,39 @@ impl TriviumApp {
         ui.add_space(6.0);
 
         // ── Optional Background Auto-Profile Daemon Card ──
+        let daemon_sec_lbl = self.tr(
+            "DAEMON AUTO-PERFIL (TRIVIUM-DAEMON)",
+            "AUTO-PROFILE DAEMON (TRIVIUM-DAEMON)",
+        );
+        let svc_active_lbl = self.tr("Servicio: ACTIVO", "Service: ACTIVE");
+        let svc_inactive_lbl = self.tr("Servicio: INACTIVO", "Service: INACTIVE");
+        let stop_daemon_lbl = self.tr("DETENER DAEMON", "STOP DAEMON");
+        let start_daemon_lbl = self.tr("ACTIVAR DAEMON", "START DAEMON");
+        let bind_eq_lbl = self.tr(
+            "ASOCIAR EQ ACTUAL A ESTE DISPOSITIVO",
+            "BIND CURRENT EQ TO THIS DEVICE",
+        );
+        let diag_sec_lbl = self.tr(
+            "DIAGNÓSTICO DE AUDIO Y MOTOR RUST",
+            "AUDIO & RUST ENGINE DIAGNOSTICS",
+        );
         sub_card_frame().show(ui, |ui| {
-            section_label(ui, "DAEMON AUTO-PERFIL (TRIVIUM-DAEMON)");
+            section_label(ui, daemon_sec_lbl);
             if !cfg!(target_os = "windows") {
                 let half_w = ((ui.available_width() - 8.0) / 2.0).max(110.0);
                 ui.horizontal(|ui| {
                     let st_txt = if self.daemon_active {
-                        "Servicio: ACTIVO"
+                        svc_active_lbl
                     } else {
-                        "Servicio: INACTIVO"
+                        svc_inactive_lbl
                     };
                     let st_col = if self.daemon_active { pal.text_primary } else { pal.text_muted };
                     ui.label(egui::RichText::new(st_txt).size(10.5).monospace().color(st_col));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let toggle_lbl = if self.daemon_active {
-                            "DETENER DAEMON"
+                            stop_daemon_lbl
                         } else {
-                            "ACTIVAR DAEMON"
+                            start_daemon_lbl
                         };
                         let resp = if self.daemon_active {
                             outline_pill(ui, toggle_lbl, true, Vec2::new(half_w, 26.0))
@@ -2266,7 +2295,7 @@ impl TriviumApp {
             if let Some(dev) = self.active_device().cloned() {
                 if red_pill(
                     ui,
-                    "ASOCIAR EQ ACTUAL A ESTE DISPOSITIVO",
+                    bind_eq_lbl,
                     Vec2::new(ui.available_width(), 28.0),
                 )
                 .clicked()
@@ -2332,7 +2361,7 @@ impl TriviumApp {
 
         // ── Diagnostics Card ──
         sub_card_frame().show(ui, |ui| {
-            section_label(ui, "DIAGNÓSTICO DE AUDIO Y MOTOR RUST");
+            section_label(ui, diag_sec_lbl);
             let dev_line = self
                 .active_device()
                 .map(|d| {

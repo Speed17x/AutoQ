@@ -23,11 +23,11 @@
 
 ---
 
-## Screenshots (`NothingOS` theme · also includes `Default` & `Default Light`)
+## Screenshots (`Default` Emerald · also includes `Default Light` & `NothingOS`)
 
-| Compact Widget | Parametric EQ (`EQ`) | AutoEQ (+14,500 curves) | Advanced & 1-Click |
+| Compact Widget (`Trivium`) | Parametric EQ (`EQ` + Output Gain) | AutoEQ (+14,500 curves) | Advanced & 1-Click |
 | :---: | :---: | :---: | :---: |
-| ![Compact Widget](./docs/screenshots/autoq_nothing_widget.png) | ![EQ Tab](./docs/screenshots/autoq_nothing_full_eq.png) | ![AutoEQ Tab](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Advanced Tab](./docs/screenshots/autoq_nothing_full_adv.png) |
+| ![Compact Widget](./docs/screenshots/trivium_widget.png) | ![EQ Tab](./docs/screenshots/trivium_full_eq.png) | ![AutoEQ Tab](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Advanced Tab](./docs/screenshots/autoq_nothing_full_adv.png) |
 
 ---
 
@@ -45,6 +45,8 @@ Download prebuilt binaries from [GitHub Releases](https://github.com/Speed17x/Tr
   ```
 - **Hyprland / KDE Plasma 6:** 1-click install from **Advanced** in the GUI or `./Trivium-x86_64.AppImage --install-hyprland-widget` / `--install-kde-plasmoid`.
 - **Windows:** run **`Trivium-Setup-x64.exe`** or **`Trivium-Windows-x64.zip`** ([`windows-beta/README.md`](./windows-beta/README.md)).
+  > [!WARNING]
+  > **Windows SmartScreen:** `Trivium-Setup-x64.exe` and `Trivium.exe` are currently **unsigned** (pending free open-source Authenticode signing via SignPath Foundation), so Windows Defender SmartScreen will show an *"Unknown publisher"* warning. Verify the file hash against `SHA256SUMS.txt` and click **More info → Run anyway** (or compile from source).
 - **macOS (`arm64`):** extract `Trivium-macOS-arm64.zip` and run `xattr -dr com.apple.quarantine ./trivium ./trivium-cli ./trivium-daemon`.
 - **Quick CLI:** `trivium-cli eq "Moondrop Chu 2" --target "Harman In-Ear 2019" --apply --commit` · `trivium-cli hid-scan --dump-descriptors` · `trivium-cli ble-protocols`.
 

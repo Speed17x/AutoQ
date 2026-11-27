@@ -23,11 +23,11 @@
 
 ---
 
-## Capturas (`NothingOS` · también incluye `Default` y `Default claro`)
+## Capturas (`Default` Esmeralda · también incluye `Default claro` y `NothingOS`)
 
-| Widget Compacto | Ecualizador (`EQ`) | AutoEQ (+14,500 curvas) | Avanzado & 1-Clic |
+| Widget Compacto (`Trivium`) | Ecualizador (`EQ` + Salida) | AutoEQ (+14,500 curvas) | Avanzado & 1-Clic |
 | :---: | :---: | :---: | :---: |
-| ![Widget Compacto](./docs/screenshots/autoq_nothing_widget.png) | ![Pestaña EQ](./docs/screenshots/autoq_nothing_full_eq.png) | ![Pestaña AutoEQ](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Pestaña Avanzado](./docs/screenshots/autoq_nothing_full_adv.png) |
+| ![Widget Compacto](./docs/screenshots/trivium_widget.png) | ![Pestaña EQ](./docs/screenshots/trivium_full_eq.png) | ![Pestaña AutoEQ](./docs/screenshots/autoq_nothing_full_autoq.png) | ![Pestaña Avanzado](./docs/screenshots/autoq_nothing_full_adv.png) |
 
 ---
 
@@ -45,6 +45,8 @@ Descarga los artefactos desde [GitHub Releases](https://github.com/Speed17x/Triv
   ```
 - **Hyprland / KDE Plasma 6:** instala en 1 clic desde **Avanzado** en la App GUI o con `./Trivium-x86_64.AppImage --install-hyprland-widget` / `--install-kde-plasmoid`.
 - **Windows:** ejecuta **`Trivium-Setup-x64.exe`** o **`Trivium-Windows-x64.zip`** ([`windows-beta/README.md`](./windows-beta/README.md)).
+  > [!WARNING]
+  > **Windows SmartScreen:** `Trivium-Setup-x64.exe` y `Trivium.exe` aún **no tienen firma Authenticode pública** (pendiente de alta en SignPath Foundation), por lo que Windows Defender SmartScreen mostrará la advertencia de *"Editor desconocido"*. Verifica el hash SHA-256 en `SHA256SUMS.txt` y pulsa **Más información → Ejecutar de todas formas** (o compila desde código fuente).
 - **macOS (`arm64`):** descomprime `Trivium-macOS-arm64.zip` y ejecuta `xattr -dr com.apple.quarantine ./trivium ./trivium-cli ./trivium-daemon`.
 - **CLI rápido:** `trivium-cli eq "Moondrop Chu 2" --target "Harman In-Ear 2019" --apply --commit` · `trivium-cli hid-scan --dump-descriptors` · `trivium-cli ble-protocols`.
 
