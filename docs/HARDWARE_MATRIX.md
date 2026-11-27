@@ -34,7 +34,7 @@ Compatibility status across USB-C HID/CDC families, wireless BLE GATT transport,
 | :--- | :--- | :--- | :--- | :--- |
 | **FiiO BLE GATT** (`00001100-...`) | FiiO EH11, FiiO EH13 | **Android** (native `BleDspTransport`) · **Desktop Core** (codecs + `trivium-cli ble-protocols`) | 10 bands · ±20 dB · GATT RX/TX read & write | 🧪 Protocol-implemented (`devicePEQ`) + unit tests · **Open for community testing** |
 | **Airoha BLE GATT** (`5052494d-...`) | Audeze Maxwell (4 slots) | **Android** (native `BleDspTransport`) · **Desktop Core** (codecs + `trivium-cli ble-protocols`) | 10 bands · ±12 dB · 193B LE frame | 🧪 Protocol-implemented (`devicePEQ`) + unit tests · **Open for community testing** |
-| **Bluetooth Classic SPP** (`RFCOMM`) | Moondrop Space Travel 2, Golden Ages 2, Moca, Edge, Nekocake, Robin, BLOCK, Alice | **Linux** (`AF_BLUETOOTH`) + **Android** (`BluetoothSocket`) | 5 bands · `-max_pos` preamp · Built-in preset switch | ✅ **Verified on real hardware (Golden Ages 2)** |
+| **Bluetooth Classic SPP** (`RFCOMM`) | Moondrop Space Travel 2, Golden Ages 2, Moca, Edge, Nekocake, Robin, BLOCK, Alice | **Linux** (`AF_BLUETOOTH`) + **Android** (`BluetoothSocket`) | 5 bands · `-max_pos` preamp · Built-in preset switch | 🧪 Protocol-implemented + unit tests · **Open for community testing** |
 
 ---
 
