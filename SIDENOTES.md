@@ -16,5 +16,5 @@ Notas de revisión local (2026-11-26). Marcar con `[x]` al completar.
 
 ## Documentación / distribución
 - [x] Acortar el README (resumen arriba, detalle en `docs/`).
-- [ ] Considerar versión en inglés de la documentación.
+- [x] Versión en inglés de la documentación ([`README.md`](./README.md) en inglés, [`README.es.md`](./README.es.md) en español, [`docs/HARDWARE_MATRIX.md`](./docs/HARDWARE_MATRIX.md) en inglés y enlace de traducción automática).
 - [ ] Firma Authenticode pública en Windows (SmartScreen).
